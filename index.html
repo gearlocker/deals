@@ -1741,6 +1741,64 @@
   }
 
   /* ====================================================================
+     PROPOSAL DOCUMENT — portrait letter pages, rasterised to a branded PDF
+     ==================================================================== */
+  .prop-page {
+    width: 816px; height: 1056px; background: #fff; box-sizing: border-box;
+    padding: 54px 72px 38px; display: flex; flex-direction: column;
+    font-family: 'canada-type-gibson','Gibson','Inter',-apple-system,sans-serif;
+    color: var(--ink); position: relative; overflow: hidden; font-weight: 300;
+  }
+  .prop-header { display: flex; align-items: center; padding-bottom: 16px; border-bottom: 2px solid var(--ink); margin-bottom: 30px; flex: none; }
+  .prop-header .prop-logo img { height: 24px; width: auto; display: block; }
+  .prop-body { flex: 1 1 auto; min-height: 0; }
+  .prop-footer { flex: none; display: flex; justify-content: flex-end; padding-top: 14px; font-size: 11px; color: var(--ink-4); }
+  .prop-eyebrow { font-size: 13px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); margin: 0 0 14px; }
+  .prop-title { font-size: 46px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.05; margin: 0 0 12px; }
+  .prop-date { font-size: 14px; color: var(--ink-3); margin: 0 0 34px; }
+  .prop-rule { height: 1px; background: var(--border); margin: 4px 0 30px; }
+  .prop-label { font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-4); margin: 0 0 8px; }
+  .prop-h2 { font-size: 25px; font-weight: 600; letter-spacing: -0.02em; margin: 0 0 14px; line-height: 1.15; }
+  .prop-section { margin-bottom: 30px; }
+  .prop-section:last-child { margin-bottom: 0; }
+  .prop-p { font-size: 14px; line-height: 1.6; color: var(--ink-3); margin: 0 0 12px; }
+  .prop-p:last-child { margin-bottom: 0; }
+  .prop-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .prop-table td, .prop-table th { border: 1px solid var(--border); padding: 11px 14px; text-align: left; vertical-align: top; }
+  .prop-table th { background: var(--ink); color: #fff; font-weight: 500; font-size: 12px; letter-spacing: 0.02em; }
+  .prop-table .feat-name { font-weight: 600; color: var(--ink); width: 33%; }
+  .prop-table td { color: var(--ink-3); line-height: 1.5; }
+  .prop-bullets { margin: 0; padding: 0; list-style: none; }
+  .prop-bullets li { font-size: 14px; line-height: 1.5; color: var(--ink-3); padding-left: 18px; position: relative; margin-bottom: 9px; }
+  .prop-bullets li:last-child { margin-bottom: 0; }
+  .prop-bullets li::before { content: ''; position: absolute; left: 0; top: 8px; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+  .prop-bullets b { color: var(--ink); font-weight: 600; }
+  .prop-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin: 16px 0; }
+  .prop-stat { border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .prop-stat.hl { background: var(--ink); border-color: var(--ink); }
+  .prop-stat-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-4); margin-bottom: 10px; }
+  .prop-stat.hl .prop-stat-label { color: rgba(255,255,255,.55); }
+  .prop-stat-value { font-size: 27px; font-weight: 700; letter-spacing: -0.03em; line-height: 1; }
+  .prop-stat.hl .prop-stat-value { color: #fff; }
+  .prop-stat-sub { font-size: 11px; color: var(--ink-4); margin-top: 8px; line-height: 1.4; }
+  .prop-stat.hl .prop-stat-sub { color: rgba(255,255,255,.72); }
+  .prop-note { font-size: 11.5px; color: var(--ink-4); font-style: italic; line-height: 1.5; margin-top: 14px; }
+  .prop-pricing td:nth-child(2), .prop-pricing td:nth-child(3), .prop-pricing td:nth-child(4),
+  .prop-pricing th:nth-child(2), .prop-pricing th:nth-child(3), .prop-pricing th:nth-child(4) { text-align: right; white-space: nowrap; }
+  .prop-pricing .sub td { background: var(--surface); font-weight: 600; color: var(--ink); }
+  .prop-pricing .tot td { background: var(--ink); color: #fff; font-weight: 700; }
+  .prop-addon { margin-top: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; font-size: 13px; color: var(--ink-3); }
+  .prop-addon b { color: var(--ink); font-weight: 600; }
+  .prop-guarantee { margin-top: 16px; background: var(--accent-soft); border-radius: 8px; padding: 13px 16px; font-size: 12.5px; line-height: 1.5; color: var(--accent-soft-text); }
+  .prop-guarantee b { color: var(--ink); font-weight: 700; }
+  .prop-quote { background: var(--accent-soft); border-left: 3px solid var(--accent); border-radius: 0 8px 8px 0; padding: 14px 18px; margin-bottom: 12px; }
+  .prop-quote .q { font-size: 13.5px; font-style: italic; color: var(--ink-2); line-height: 1.5; }
+  .prop-quote .a { font-size: 12px; color: var(--accent-soft-text); margin-top: 8px; font-weight: 600; }
+  .prop-contact .pc-label { font-size: 13px; font-weight: 700; margin-bottom: 10px; }
+  .prop-contact .pc-name { font-size: 16px; font-weight: 600; }
+  .prop-contact .pc-line { font-size: 14px; color: var(--ink-3); margin-top: 3px; }
+
+  /* ====================================================================
      DASHBOARD (deck manager) — list + create decks, manage salespeople
      ==================================================================== */
   .dash {
@@ -2325,8 +2383,10 @@ function deckRow(deck, team){
     el('div',{class:'deck-row-actions'},
       el('button',{class:'btn sm primary', onClick:()=>openDeck(deck.id)},
         el('span',{html:'<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>'}), 'View'),
-      el('button',{class:'btn sm', onClick:(e)=>downloadDeckPdf(deck, e.currentTarget)},
-        el('span',{html:'<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>'}), 'Download PDF'),
+      el('button',{class:'btn sm', title:'Download the slide deck as a PDF', onClick:(e)=>downloadDeckPdf(deck, e.currentTarget)},
+        el('span',{html:'<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>'}), 'Deck PDF'),
+      el('button',{class:'btn sm', title:'Generate a branded proposal PDF', onClick:(e)=>generateProposal(deck, e.currentTarget)},
+        el('span',{html:'<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/></svg>'}), 'Proposal'),
       el('button',{class:'btn ghost sm', title:'Delete deck', onClick:()=>deleteDeck(deck.id)},
         el('span',{html:'<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>'}))
     )
@@ -2530,6 +2590,241 @@ async function downloadDeckPdf(deck, btn){
     btn.innerHTML = origHTML;
     btn.disabled = false;
     state.d = prev.d; state.lossPct = prev.lossPct; state.view = prev.view; state.deckId = prev.deckId;
+  }
+}
+
+/* ---------- Branded PDF proposal (document format) ---------- */
+function proposalData(deck){
+  const sp = getTeam().find(p => p.id === deck.salespersonId) || null;
+  const enrollment = deck.enrollment ? Number(deck.enrollment) : null;
+  const sports = Array.isArray(deck.sports) ? deck.sports : [];
+  const tier = pickTier(enrollment) || SCHOOL_TIERS[2];
+  const year1 = tier.annual + tier.onboarding;
+  const realSis = isRealSis(deck.sis);
+  let roi = null;
+  if (enrollment && sports.length){
+    const est = estimateGear(enrollment, sports);
+    const lossPct = deck.lossPct != null ? deck.lossPct : 10;
+    roi = { totalValue: est.totalValue, programs: sports.length, lossPct,
+            lossValue: Math.round(est.totalValue * lossPct / 100),
+            recovered: Math.round(est.totalValue * Math.max(lossPct - GL_LOSS_FLOOR, 0) / 100) };
+  }
+  return { sp, enrollment, sports, tier, year1, realSis, roi };
+}
+function propPage(){
+  const kids = Array.prototype.slice.call(arguments);
+  return el('div',{class:'prop-page'},
+    el('div',{class:'prop-header'}, el('span',{class:'prop-logo', html: LOGO_IMG_DARK})),
+    el('div',{class:'prop-body'}, ...kids),
+    el('div',{class:'prop-footer'}, 'gearlocker.com')
+  );
+}
+function propSec(label, title){
+  return [ el('div',{class:'prop-label'}, label), el('h2',{class:'prop-h2'}, title) ];
+}
+function buildProposalPages(deck){
+  const d = proposalData(deck);
+  const school = deck.school;
+  const dateStr = new Date().toLocaleDateString(undefined, { month:'long', day:'numeric', year:'numeric' });
+  const pages = [];
+
+  const FEATURES = [
+    ['Centralize Inventory','All gear from every sport and team in one unified platform. Move off disconnected spreadsheets instantly.'],
+    ['Check In / Check Out','Track every item assignment from checkout to return with a full audit trail — know exactly who has what, and when.'],
+    ['Automated Parent Notifications','When gear is checked out, parents are automatically emailed the item, photo, and replacement cost. Reminders go out on overdue items.'],
+    ['QR Code Label Scanning','Scan a QR code to instantly assign gear to an athlete — no manual entry. One scan logs the item, records the assignment, and notifies the parent.'],
+    ['SIS Integrations','Automatically sync rosters from your student information system (PowerSchool, Infinite Campus, Skyward, Clever, ClassLink, Veracross, and more), or upload a CSV.'],
+    ['Reporting & Forecasting','Real-time reports on missing items, damaged gear, overdue returns, and replacement needs — so you budget with data, not guesswork.'],
+    ['Role-Based Access','Coaches see only their team(s). Athletic directors and administrators get a cross-team dashboard with full visibility across every program.'],
+    ['Mobile-Native','Every feature works on any device — coaches check gear in and out from the field, the locker room, or anywhere.']
+  ];
+  const SCOPE = [
+    ['Athletics','all sports, all seasons'],
+    ['Band & Orchestra','instruments, uniforms, equipment'],
+    ['Performing Arts','costumes, props, tech equipment'],
+    ['Cheer & Dance','uniforms, poms, warm-ups'],
+    ['Technology Assets','laptops, tablets, audio/visual'],
+    ['Facilities','locks and locker assignments']
+  ];
+  const ROLLOUT = [
+    ['Week 1','Setup','We build your organization profile and import your gear inventory.','GearLocker & you'],
+    ['Weeks 1–2','Sync','Connect your SIS or upload rosters — they update automatically going forward.','GearLocker & IT'],
+    ['Weeks 2–3','Train','A quick 1-hour training session for coaches and administrators.','GearLocker'],
+    ['Week 3','QR codes','Optional QR labels, stickers, and bag tags arrive and are linked to gear.','Your team'],
+    ['Week 4','Launch','Coaches start checking gear in and out — you’re live and saving time.','Your team']
+  ];
+
+  // PAGE 1 — cover + overview
+  pages.push(propPage(
+    el('div',{style:'margin-top:36px'},
+      el('div',{class:'prop-eyebrow'}, 'GearLocker Pricing Proposal'),
+      el('div',{class:'prop-title'}, school),
+      el('div',{class:'prop-date'}, 'Prepared ' + dateStr + (d.sp ? ' by ' + d.sp.name : ''))
+    ),
+    el('div',{class:'prop-rule'}),
+    el('div',{class:'prop-section'},
+      ...propSec('Overview','What is GearLocker?'),
+      el('p',{class:'prop-p'}, 'GearLocker is a modern, cloud-based gear management platform built specifically for schools and activities departments. It replaces the fragmented spreadsheets and manual tracking most programs rely on with a single, centralized system — full visibility for administrators, and a simple mobile tool coaches will actually use.'),
+      el('p',{class:'prop-p'}, 'Whether you manage one school’s athletics program or oversee gear across a district, GearLocker provides the structure, automation, and accountability to reduce gear loss, save time, and eliminate end-of-season headaches.')
+    ),
+    el('div',{class:'prop-section'},
+      ...propSec('The Solution','The complete gear management solution'),
+      el('p',{class:'prop-p'}, 'GearLocker centralizes everything in one platform — every sport, team, and activity. Here’s what’s included for ' + school + ':')
+    )
+  ));
+
+  // PAGE 2 — features table
+  const featRows = FEATURES.map(f => el('tr',{}, el('td',{class:'feat-name'}, f[0]), el('td',{}, f[1])));
+  pages.push(propPage(
+    el('div',{class:'prop-section'},
+      ...propSec('What’s included','Everything your programs need'),
+      el('table',{class:'prop-table'}, el('tbody',{}, ...featRows))
+    )
+  ));
+
+  // PAGE 3 — tailored numbers (if any) + platform scope
+  const page3 = [];
+  if (d.roi){
+    page3.push(el('div',{class:'prop-section'},
+      ...propSec('Your numbers','What ' + school + ' has on the line'),
+      el('p',{class:'prop-p'}, 'Based on ' + fmtNum(d.enrollment) + ' students and the ' + d.roi.programs + ' program' + (d.roi.programs===1?'':'s') + ' you run, here’s what’s at stake each year:'),
+      el('div',{class:'prop-stats'},
+        el('div',{class:'prop-stat'},
+          el('div',{class:'prop-stat-label'},'Gear under management'),
+          el('div',{class:'prop-stat-value'}, '~' + fmtMoney(d.roi.totalValue)),
+          el('div',{class:'prop-stat-sub'}, 'school-issued gear across ' + d.roi.programs + ' program' + (d.roi.programs===1?'':'s'))
+        ),
+        el('div',{class:'prop-stat'},
+          el('div',{class:'prop-stat-label'},'Likely loss / year'),
+          el('div',{class:'prop-stat-value'}, '~' + fmtMoney(d.roi.lossValue)),
+          el('div',{class:'prop-stat-sub'}, 'at a typical ' + d.roi.lossPct + '% loss rate on spreadsheets')
+        ),
+        el('div',{class:'prop-stat hl'},
+          el('div',{class:'prop-stat-label'},'Recoverable / year'),
+          el('div',{class:'prop-stat-value'}, '~' + fmtMoney(d.roi.recovered)),
+          el('div',{class:'prop-stat-sub'}, 'as loss drops from ' + d.roi.lossPct + '% to ~3% verified')
+        )
+      ),
+      el('div',{class:'prop-note'}, 'Figures use a conservative model — NFHS participation rates and industry replacement values for school-issued gear only. Personal equipment is excluded.')
+    ));
+  }
+  page3.push(el('div',{class:'prop-section'},
+    ...propSec('Platform scope','One system for your entire organization'),
+    el('p',{class:'prop-p'}, 'GearLocker is built for athletics, but it tracks anything you issue:'),
+    el('ul',{class:'prop-bullets'}, ...SCOPE.map(s => el('li',{}, el('b',{}, s[0]), ' — ' + s[1]))),
+    d.sports.length ? el('p',{class:'prop-p', style:'margin-top:14px'}, el('b',{style:'color:var(--ink)'}, 'You told us ' + school + ' runs: '), d.sports.join(', ') + '.') : null
+  ));
+  pages.push(propPage(...page3));
+
+  // PAGE 4 — getting started / rollout
+  pages.push(propPage(
+    el('div',{class:'prop-section'},
+      ...propSec('Getting started','From signup to success in under 30 days'),
+      el('p',{class:'prop-p'}, 'GearLocker handles the heavy lifting. Our team builds your organization, imports your inventory, and trains your staff — most schools are live within 30 days of signing.'),
+      el('table',{class:'prop-table', style:'margin-top:8px'},
+        el('thead',{}, el('tr',{}, el('th',{},'Timeline'), el('th',{},'Phase'), el('th',{},'What happens'), el('th',{},'Who'))),
+        el('tbody',{}, ...ROLLOUT.map(r => el('tr',{}, el('td',{class:'feat-name', style:'width:auto;white-space:nowrap'}, r[0]), el('td',{style:'white-space:nowrap'}, r[1]), el('td',{}, r[2]), el('td',{style:'white-space:nowrap'}, r[3]))))
+      )
+    )
+  ));
+
+  // PAGE 5 — investment / pricing
+  const included = [
+    'Unlimited inventory items and teams',
+    'Check in / check out with full assignment history',
+    'Automated parent notification emails',
+    'QR code label scanning (labels sold separately)',
+    'SIS integrations and roster sync',
+    'Reporting, budgeting, and replacement forecasting'
+  ];
+  pages.push(propPage(
+    el('div',{class:'prop-section'},
+      ...propSec('Investment','Pricing & licensing'),
+      el('p',{class:'prop-p'}, 'GearLocker is priced by school enrollment so it stays accessible to programs of every size. Based on ' + (d.enrollment ? fmtNum(d.enrollment) + ' students' : 'your enrollment') + ', ' + school + ' is on the ' + d.tier.name + ' plan (' + d.tier.band + ').'),
+      el('p',{class:'prop-p', style:'font-weight:500;color:var(--ink)'}, 'The annual platform license includes:'),
+      el('ul',{class:'prop-bullets', style:'margin-bottom:20px'}, ...included.map(b => el('li',{}, b))),
+      el('table',{class:'prop-table prop-pricing'},
+        el('thead',{}, el('tr',{}, el('th',{},'Description'), el('th',{},'Qty'), el('th',{},'Rate'), el('th',{},'Amount'))),
+        el('tbody',{},
+          el('tr',{}, el('td',{class:'feat-name', style:'width:auto'},'One-time onboarding & setup'), el('td',{},'1'), el('td',{}, fmtMoney(d.tier.onboarding)), el('td',{}, fmtMoney(d.tier.onboarding))),
+          el('tr',{}, el('td',{class:'feat-name', style:'width:auto'}, d.tier.name + ' annual subscription'), el('td',{},'1 yr'), el('td',{}, fmtMoney(d.tier.annual) + ' / yr'), el('td',{}, fmtMoney(d.tier.annual))),
+          el('tr',{class:'sub'}, el('td',{colspan:'3', style:'text-align:right'},'One-time subtotal'), el('td',{}, fmtMoney(d.tier.onboarding))),
+          el('tr',{class:'sub'}, el('td',{colspan:'3', style:'text-align:right'},'Annual subtotal'), el('td',{}, fmtMoney(d.tier.annual))),
+          el('tr',{class:'tot'}, el('td',{colspan:'3', style:'text-align:right'},'First-year total'), el('td',{}, fmtMoney(d.year1)))
+        )
+      ),
+      d.realSis ? el('div',{class:'prop-addon'}, el('b',{},'Optional add-on: '), 'SIS integration (' + deck.sis + ') — +$500 / yr for automatic roster sync.') : null,
+      el('div',{class:'prop-guarantee'}, el('b',{},'Value guarantee: '), 'if the gear value GearLocker helps you recover in your first 12 months is less than what you pay in subscription, we refund the difference.'),
+      el('div',{class:'prop-note'}, 'The setup fee is one-time. Beginning in year two, only the annual subscription is billed at renewal.')
+    )
+  ));
+
+  // PAGE 6 — QR labels add-on + customer stories
+  const LABELS = [
+    ['Bag Tags (Heavy-Duty)','Duffels, backpacks, sideline storage. Includes key ring.','$0.75','500 units'],
+    ['QR Sticker Labels','Helmets, shoulder pads, hard surfaces. NFC upgrade available.','$0.75','500 units'],
+    ['Heat-Press Apparel','Uniforms, warm-ups, laundry-heavy items. Won’t peel or fade.','$1.00','500 units']
+  ];
+  const quotes = [TESTIMONIALS[2], TESTIMONIALS[1]];
+  pages.push(propPage(
+    el('div',{class:'prop-section'},
+      ...propSec('Optional add-on','QR code labels'),
+      el('p',{class:'prop-p'}, 'GearLocker uses physical QR labels for fast scanning and assignment. Labels are sold separately in increments of 500 and ship directly to your school, linked to your inventory during onboarding.'),
+      el('table',{class:'prop-table', style:'margin-top:6px'},
+        el('thead',{}, el('tr',{}, el('th',{},'Label type'), el('th',{},'Best for'), el('th',{},'Price / unit'), el('th',{},'Min. order'))),
+        el('tbody',{}, ...LABELS.map(l => el('tr',{}, el('td',{class:'feat-name', style:'width:24%'}, l[0]), el('td',{}, l[1]), el('td',{style:'white-space:nowrap'}, l[2]), el('td',{style:'white-space:nowrap'}, l[3]))))
+      )
+    ),
+    el('div',{class:'prop-section'},
+      ...propSec('Customer stories','What schools are saying'),
+      ...quotes.map(q => el('div',{class:'prop-quote'}, el('div',{class:'q'}, '“' + q.quote + '”'), el('div',{class:'a'}, '— ' + q.name + ', ' + q.role)))
+    )
+  ));
+
+  // PAGE 7 — next steps + prepared by
+  pages.push(propPage(
+    el('div',{style:'margin-top:30px'},
+      ...propSec('Next steps','Ready to get started?'),
+      el('p',{class:'prop-p'}, 'GearLocker is ready to work for ' + school + '. Our onboarding team handles the setup, imports your data, and makes sure your coaches and staff are trained and confident before you go live.'),
+      el('p',{class:'prop-p', style:'margin-bottom:36px'}, 'To move forward, complete a purchase order or contact us to finalize your agreement. Any questions can go to your GearLocker contact below.'),
+      el('div',{class:'prop-contact'},
+        el('div',{class:'pc-label'},'Prepared by'),
+        el('div',{class:'pc-name'}, d.sp ? d.sp.name : 'Your GearLocker team'),
+        d.sp && d.sp.email ? el('div',{class:'pc-line'}, d.sp.email) : null,
+        d.sp && d.sp.phone ? el('div',{class:'pc-line'}, d.sp.phone) : null
+      ),
+      el('div',{class:'prop-note', style:'margin-top:32px'}, 'This proposal is valid for 30 days from the date of issue.')
+    )
+  ));
+
+  return pages;
+}
+
+async function generateProposal(deck, btn){
+  const origHTML = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = 'Building…';
+  const host = document.createElement('div');
+  host.style.cssText = 'position:fixed;left:-100000px;top:0;width:816px;z-index:-1;background:#fff;';
+  document.body.appendChild(host);
+  try {
+    await ensurePdfLibs();
+    if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch(e){} }
+    const pages = buildProposalPages(deck);
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation:'portrait', unit:'px', format:[816,1056], compress:true });
+    for (let i=0;i<pages.length;i++){
+      host.replaceChildren(pages[i]);
+      const shot = await window.html2canvas(pages[i], { scale:2, backgroundColor:'#ffffff', width:816, height:1056, windowWidth:816, windowHeight:1056, imageTimeout:15000, logging:false });
+      const img = shot.toDataURL('image/jpeg', 0.92);
+      if (i>0) pdf.addPage([816,1056],'portrait');
+      pdf.addImage(img,'JPEG',0,0,816,1056);
+    }
+    pdf.save((deck.school ? deck.school + ' — ' : '') + 'GearLocker Proposal.pdf');
+  } catch(e){
+    console.error('proposal export failed', e);
+    alert('Sorry — the proposal export hit an error:\n\n' + (e && e.message ? e.message : e) + '\n\nPlease try again.');
+  } finally {
+    host.remove(); btn.disabled = false; btn.innerHTML = origHTML;
   }
 }
 
