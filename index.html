@@ -2629,14 +2629,14 @@ function buildProposalPages(deck){
   const pages = [];
 
   const FEATURES = [
-    ['Centralize Inventory','All gear from every sport and team in one unified platform. Move off disconnected spreadsheets instantly.'],
-    ['Check In / Check Out','Track every item assignment from checkout to return with a full audit trail — know exactly who has what, and when.'],
-    ['Automated Parent Notifications','When gear is checked out, parents are automatically emailed the item, photo, and replacement cost. Reminders go out on overdue items.'],
-    ['QR Code Label Scanning','Scan a QR code to instantly assign gear to an athlete — no manual entry. One scan logs the item, records the assignment, and notifies the parent.'],
-    ['SIS Integrations','Automatically sync rosters from your student information system (PowerSchool, Infinite Campus, Skyward, Clever, ClassLink, Veracross, and more), or upload a CSV.'],
-    ['Reporting & Forecasting','Real-time reports on missing items, damaged gear, overdue returns, and replacement needs — so you budget with data, not guesswork.'],
-    ['Role-Based Access','Coaches see only their team(s). Athletic directors and administrators get a cross-team dashboard with full visibility across every program.'],
-    ['Mobile-Native','Every feature works on any device — coaches check gear in and out from the field, the locker room, or anywhere.']
+    ['Centralized inventory','Every sport and team’s gear on one screen. We import your existing spreadsheets in a day — no more digging through tabs to find what you own.'],
+    ['Check-in / check-out','Assign gear to an athlete in three taps. Every checkout and return is time-stamped, so you always know who has what, and when.'],
+    ['Automatic parent notifications','When a player checks gear out, their parent gets an email with the item, a photo, and the replacement cost. Overdue items send their own reminders — no more 9 PM emails in May.'],
+    ['QR label scanning','Scan a label to assign gear on the spot. One scan logs the item, names the athlete, and notifies the parent. No typing, no missed entries.'],
+    ['SIS roster sync','Rosters sync straight from your student information system — PowerSchool, Infinite Campus, Skyward, Clever, ClassLink, Veracross, and more. No SIS? Upload a CSV.'],
+    ['Reporting & forecasting','See what’s missing, what’s damaged, and what’s due for replacement. Walk into the budget meeting with numbers instead of guesses.'],
+    ['Role-based access','Coaches see only their teams. The AD sees the whole department — every program and every item, rolled up in one place.'],
+    ['Works on any device','Phone, tablet, or laptop. Coaches check gear in and out from the locker room, the field, or the bus.']
   ];
   const SCOPE = [
     ['Athletics','all sports, all seasons'],
@@ -2647,11 +2647,11 @@ function buildProposalPages(deck){
     ['Facilities','locks and locker assignments']
   ];
   const ROLLOUT = [
-    ['Week 1','Setup','We build your organization profile and import your gear inventory.','GearLocker & you'],
-    ['Weeks 1–2','Sync','Connect your SIS or upload rosters — they update automatically going forward.','GearLocker & IT'],
-    ['Weeks 2–3','Train','A quick 1-hour training session for coaches and administrators.','GearLocker'],
-    ['Week 3','QR codes','Optional QR labels, stickers, and bag tags arrive and are linked to gear.','Your team'],
-    ['Week 4','Launch','Coaches start checking gear in and out — you’re live and saving time.','Your team']
+    ['Week 1','Setup','We build your organization and import your gear inventory.','GearLocker & you'],
+    ['Weeks 1–2','Sync','Connect your SIS or upload rosters — they stay current from then on.','GearLocker & IT'],
+    ['Weeks 2–3','Train','One hour with your coaches and admins. That’s the whole training.','GearLocker'],
+    ['Week 3','QR codes','Optional QR labels, stickers, and bag tags arrive and get linked to your gear.','Your team'],
+    ['Week 4','Launch','Coaches start checking gear in and out. You’re live.','Your team']
   ];
 
   // PAGE 1 — cover + overview
@@ -2664,12 +2664,12 @@ function buildProposalPages(deck){
     el('div',{class:'prop-rule'}),
     el('div',{class:'prop-section'},
       ...propSec('Overview','What is GearLocker?'),
-      el('p',{class:'prop-p'}, 'GearLocker is a modern, cloud-based gear management platform built specifically for schools and activities departments. It replaces the fragmented spreadsheets and manual tracking most programs rely on with a single, centralized system — full visibility for administrators, and a simple mobile tool coaches will actually use.'),
-      el('p',{class:'prop-p'}, 'Whether you manage one school’s athletics program or oversee gear across a district, GearLocker provides the structure, automation, and accountability to reduce gear loss, save time, and eliminate end-of-season headaches.')
+      el('p',{class:'prop-p'}, 'GearLocker was built by a high school wrestling coach who got tired of chasing lost gear on a spreadsheet. It puts every piece of equipment your programs own — every jersey, helmet, and bat — on one screen, with a checkout system your coaches run from their phones.'),
+      el('p',{class:'prop-p'}, 'Coaches issue and recover gear in a few taps. Athletic directors see every program in one place for the first time. And the budget stops bleeding out on gear you already owned but couldn’t find. Today, 493 programs run on GearLocker — more than 154,000 pieces of gear across 23,000 athletes.')
     ),
     el('div',{class:'prop-section'},
-      ...propSec('The Solution','The complete gear management solution'),
-      el('p',{class:'prop-p'}, 'GearLocker centralizes everything in one platform — every sport, team, and activity. Here’s what’s included for ' + school + ':')
+      ...propSec('The system','Off the spreadsheet, onto one screen'),
+      el('p',{class:'prop-p'}, 'GearLocker pulls every sport, team, and activity into one place — issued, tracked, and recovered from a coach’s phone. Here’s what ' + school + ' gets:')
     )
   ));
 
@@ -2677,7 +2677,7 @@ function buildProposalPages(deck){
   const featRows = FEATURES.map(f => el('tr',{}, el('td',{class:'feat-name'}, f[0]), el('td',{}, f[1])));
   pages.push(propPage(
     el('div',{class:'prop-section'},
-      ...propSec('What’s included','Everything your programs need'),
+      ...propSec('What’s included','Built for how your programs run'),
       el('table',{class:'prop-table'}, el('tbody',{}, ...featRows))
     )
   ));
@@ -2709,8 +2709,8 @@ function buildProposalPages(deck){
     ));
   }
   page3.push(el('div',{class:'prop-section'},
-    ...propSec('Platform scope','One system for your entire organization'),
-    el('p',{class:'prop-p'}, 'GearLocker is built for athletics, but it tracks anything you issue:'),
+    ...propSec('One system','If you issue it, GearLocker tracks it'),
+    el('p',{class:'prop-p'}, 'Built for athletics first — but it handles everything else your school hands out:'),
     el('ul',{class:'prop-bullets'}, ...SCOPE.map(s => el('li',{}, el('b',{}, s[0]), ' — ' + s[1]))),
     d.sports.length ? el('p',{class:'prop-p', style:'margin-top:14px'}, el('b',{style:'color:var(--ink)'}, 'You told us ' + school + ' runs: '), d.sports.join(', ') + '.') : null
   ));
@@ -2719,8 +2719,8 @@ function buildProposalPages(deck){
   // PAGE 4 — getting started / rollout
   pages.push(propPage(
     el('div',{class:'prop-section'},
-      ...propSec('Getting started','From signup to success in under 30 days'),
-      el('p',{class:'prop-p'}, 'GearLocker handles the heavy lifting. Our team builds your organization, imports your inventory, and trains your staff — most schools are live within 30 days of signing.'),
+      ...propSec('Getting started','Live in under 30 days'),
+      el('p',{class:'prop-p'}, 'We do the setup. We build your organization, import your inventory, and train your coaches — most schools are up and running within 30 days of signing. Here’s how it goes:'),
       el('table',{class:'prop-table', style:'margin-top:8px'},
         el('thead',{}, el('tr',{}, el('th',{},'Timeline'), el('th',{},'Phase'), el('th',{},'What happens'), el('th',{},'Who'))),
         el('tbody',{}, ...ROLLOUT.map(r => el('tr',{}, el('td',{class:'feat-name', style:'width:auto;white-space:nowrap'}, r[0]), el('td',{style:'white-space:nowrap'}, r[1]), el('td',{}, r[2]), el('td',{style:'white-space:nowrap'}, r[3]))))
@@ -2740,8 +2740,8 @@ function buildProposalPages(deck){
   pages.push(propPage(
     el('div',{class:'prop-section'},
       ...propSec('Investment','Pricing & licensing'),
-      el('p',{class:'prop-p'}, 'GearLocker is priced by school enrollment so it stays accessible to programs of every size. Based on ' + (d.enrollment ? fmtNum(d.enrollment) + ' students' : 'your enrollment') + ', ' + school + ' is on the ' + d.tier.name + ' plan (' + d.tier.band + ').'),
-      el('p',{class:'prop-p', style:'font-weight:500;color:var(--ink)'}, 'The annual platform license includes:'),
+      el('p',{class:'prop-p'}, 'Pricing scales with enrollment, so a small program never pays like a district. At ' + (d.enrollment ? fmtNum(d.enrollment) + ' students' : 'your enrollment') + ', ' + school + ' lands on the ' + d.tier.name + ' plan (' + d.tier.band + ').'),
+      el('p',{class:'prop-p', style:'font-weight:500;color:var(--ink)'}, 'The annual license covers your whole organization:'),
       el('ul',{class:'prop-bullets', style:'margin-bottom:20px'}, ...included.map(b => el('li',{}, b))),
       el('table',{class:'prop-table prop-pricing'},
         el('thead',{}, el('tr',{}, el('th',{},'Description'), el('th',{},'Qty'), el('th',{},'Rate'), el('th',{},'Amount'))),
@@ -2754,8 +2754,8 @@ function buildProposalPages(deck){
         )
       ),
       d.realSis ? el('div',{class:'prop-addon'}, el('b',{},'Optional add-on: '), 'SIS integration (' + deck.sis + ') — +$500 / yr for automatic roster sync.') : null,
-      el('div',{class:'prop-guarantee'}, el('b',{},'Value guarantee: '), 'if the gear value GearLocker helps you recover in your first 12 months is less than what you pay in subscription, we refund the difference.'),
-      el('div',{class:'prop-note'}, 'The setup fee is one-time. Beginning in year two, only the annual subscription is billed at renewal.')
+      el('div',{class:'prop-guarantee'}, el('b',{},'Our guarantee: '), 'if the gear GearLocker helps you recover in your first year is worth less than what you paid us, we refund the difference. Most programs come out ahead in the first season.'),
+      el('div',{class:'prop-note'}, 'The setup fee is one-time. From year two on, you’re billed only the annual subscription at renewal.')
     )
   ));
 
@@ -2769,7 +2769,7 @@ function buildProposalPages(deck){
   pages.push(propPage(
     el('div',{class:'prop-section'},
       ...propSec('Optional add-on','QR code labels'),
-      el('p',{class:'prop-p'}, 'GearLocker uses physical QR labels for fast scanning and assignment. Labels are sold separately in increments of 500 and ship directly to your school, linked to your inventory during onboarding.'),
+      el('p',{class:'prop-p'}, 'Physical QR labels make checkout a one-scan job. They’re sold separately in packs of 500, ship straight to your school, and get linked to your gear during onboarding.'),
       el('table',{class:'prop-table', style:'margin-top:6px'},
         el('thead',{}, el('tr',{}, el('th',{},'Label type'), el('th',{},'Best for'), el('th',{},'Price / unit'), el('th',{},'Min. order'))),
         el('tbody',{}, ...LABELS.map(l => el('tr',{}, el('td',{class:'feat-name', style:'width:24%'}, l[0]), el('td',{}, l[1]), el('td',{style:'white-space:nowrap'}, l[2]), el('td',{style:'white-space:nowrap'}, l[3]))))
@@ -2784,9 +2784,9 @@ function buildProposalPages(deck){
   // PAGE 7 — next steps + prepared by
   pages.push(propPage(
     el('div',{style:'margin-top:30px'},
-      ...propSec('Next steps','Ready to get started?'),
-      el('p',{class:'prop-p'}, 'GearLocker is ready to work for ' + school + '. Our onboarding team handles the setup, imports your data, and makes sure your coaches and staff are trained and confident before you go live.'),
-      el('p',{class:'prop-p', style:'margin-bottom:36px'}, 'To move forward, complete a purchase order or contact us to finalize your agreement. Any questions can go to your GearLocker contact below.'),
+      ...propSec('Next step','Let’s get ' + school + ' off the spreadsheet'),
+      el('p',{class:'prop-p'}, 'GearLocker is ready for ' + school + '. We handle the setup — building your organization, importing your existing gear data, and getting your coaches comfortable before launch. You don’t carry the load.'),
+      el('p',{class:'prop-p', style:'margin-bottom:36px'}, 'To move forward, send a purchase order or reply to this proposal. Anything you need goes straight to your GearLocker contact below.'),
       el('div',{class:'prop-contact'},
         el('div',{class:'pc-label'},'Prepared by'),
         el('div',{class:'pc-name'}, d.sp ? d.sp.name : 'Your GearLocker team'),
