@@ -1991,6 +1991,7 @@
   .lead-tl-icon { color: var(--ink-3); flex-shrink: 0; margin-top: 1px; }
   .lead-tl-title { font-size: 14px; font-weight: 600; color: var(--ink); }
   .lead-tl-sub { font-size: 12.5px; color: var(--ink-4); margin-top: 2px; }
+  .lead-tl-connect { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; padding: 14px 0 2px; margin-top: 6px; border-top: 1px dashed var(--border); }
   .lead-empty { font-size: 13.5px; color: var(--ink-4); padding: 6px 0; }
   .school-name.lead-link { cursor: pointer; }
   .school-name.lead-link:hover { color: var(--accent); }
@@ -3688,7 +3689,7 @@ function addTask(deck, text, due){ const tasks = deckTasks(deck).slice(); tasks.
 function toggleTask(deck, id){ const tasks = deckTasks(deck).map(t => t.id===id ? Object.assign({}, t, { done:!t.done, doneAt: !t.done ? new Date().toISOString() : null }) : t); return saveDeckPatch(deck, { tasks }); }
 function deleteTask(deck, id){ return saveDeckPatch(deck, { tasks: deckTasks(deck).filter(t=>t.id!==id) }); }
 function infoRow(k, v){ return el('div',{class:'lead-info-row'}, el('span',{class:'lead-info-k'}, k), el('span',{class:'lead-info-v'}, v)); }
-function leadTimeline(deck, meetings){
+function leadTimeline(deck, meetings, emails){
   const ev = [];
   if (deck.createdAt) ev.push({ date:deck.createdAt, icon:TL_ICON.plus, title:'Lead created', sub: deck.leadSource || '' });
   const g = deck.callGrade;
@@ -3697,6 +3698,7 @@ function leadTimeline(deck, meetings){
   if (deck.followup && deck.followup.scheduled && deck.followup.startTime) ev.push({ date:deck.followup.startTime, icon:TL_ICON.cal, title:(new Date(deck.followup.startTime).getTime() > Date.now() ? 'Follow-up booked' : 'Follow-up'), sub: deck.followup.title || '' });
   deckTasks(deck).filter(t=>t.done && t.doneAt).forEach(t => ev.push({ date:t.doneAt, icon:TL_ICON.check, title:'Task done — ' + t.text, sub:'' }));
   (meetings||[]).forEach(m => ev.push({ date:m.start, icon:TL_ICON.cal, title: m.title || 'Meeting', sub:'Calendar' }));
+  (emails||[]).forEach(m => ev.push({ date:m.date, icon:TL_ICON.mail, title: m.subject || '(no subject)', sub: (m.sent ? 'You → ' + (deck.contactFirst||'contact') : (deck.contactFirst||'Contact') + ' → you') + '  ·  Gmail' }));
   ev.sort((a,b)=> new Date(b.date).getTime() - new Date(a.date).getTime());
   return ev;
 }
@@ -3723,6 +3725,46 @@ async function fetchMeetingsAll(deck){
       .filter(e => (e.attendees||[]).some(a=>String(a.email||'').toLowerCase()===w) || String((e.summary||'')+(e.description||'')).toLowerCase().includes(w))
       .map(e => ({ start: e.start.dateTime||e.start.date, title: e.summary || 'Meeting' }));
   } catch(e){ return []; }
+}
+/* Pull recent Gmail threads with this lead's contact (read-only) onto the timeline.
+   Reads the SIGNED-IN user's mailbox ('me'), so it shows email you exchanged with them. */
+async function fetchEmailsAll(deck){
+  const out = { items: [], scopeMissing: false };
+  if (!GOOGLE_CLIENT_ID || !AUTH || !AUTH.token || Date.now() >= AUTH.expires) return out;
+  const contact = (deck.contactEmail||'').trim();
+  if (!contact) return out;
+  const q = encodeURIComponent('from:'+contact+' OR to:'+contact);
+  try {
+    const lr = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=15&q='+q, { headers:{ Authorization:'Bearer '+AUTH.token } });
+    if (lr.status===401 || lr.status===403){ out.scopeMissing = true; return out; }
+    if (!lr.ok) return out;
+    const list = await lr.json();
+    const ids = (list.messages||[]).map(m=>m.id).slice(0,15);
+    const me = String(AUTH.email||'').toLowerCase();
+    const msgs = await Promise.all(ids.map(async id => {
+      try {
+        const mr = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/'+id+'?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date', { headers:{ Authorization:'Bearer '+AUTH.token } });
+        if (!mr.ok) return null;
+        const m = await mr.json();
+        const hs = {}; ((m.payload && m.payload.headers) || []).forEach(h => { hs[String(h.name).toLowerCase()] = h.value; });
+        let date = null;
+        if (m.internalDate) date = new Date(Number(m.internalDate)).toISOString();
+        else if (hs['date']) { const d = new Date(hs['date']); if (!isNaN(d)) date = d.toISOString(); }
+        if (!date) return null;
+        return { date, subject: hs['subject'] || '(no subject)', sent: String(hs['from']||'').toLowerCase().includes(me) };
+      } catch(e){ return null; }
+    }));
+    out.items = msgs.filter(Boolean);
+    return out;
+  } catch(e){ return out; }
+}
+async function reconnectGoogle(deck){
+  try {
+    const r = await requestToken('consent');   // force the consent screen so the new Gmail-read scope is granted
+    AUTH = Object.assign({}, AUTH||{}, { token: r.access_token, expires: Date.now() + ((r.expires_in||3300)*1000) - 60000 });
+    saveAuth();
+    if (deck && state.view==='lead' && state.leadId===deck.id) renderLead(deck);
+  } catch(e){ /* user cancelled */ }
 }
 function suggestForLead(deck, box, statusEl){
   if (!SUPABASE_URL){ statusEl.textContent = 'Cloud isn’t configured.'; return; }
@@ -3808,15 +3850,22 @@ function renderLead(deck){
   recBox.appendChild(el('div',{class:'lead-rec-body'}, el('button',{class:'btn sm', type:'button', onClick:()=>suggestForLead(deck, recBox, recStatus)}, '✨ Suggest next step'), recStatus));
   const tlCard = el('div',{class:'lead-card'}, el('div',{class:'lead-card-h'},'Activity'));
   const tlList = el('div',{class:'lead-tl'});
-  leadTimeline(deck, []).forEach(e => tlList.appendChild(timelineRow(e)));
+  leadTimeline(deck, [], []).forEach(e => tlList.appendChild(timelineRow(e)));
   tlCard.appendChild(tlList);
   grid.appendChild(el('div',{class:'lead-right'}, recBox, renderLeadTasks(deck), tlCard));
   body.appendChild(grid);
-  fetchMeetingsAll(deck).then(meetings => {
-    if (meetings && meetings.length && state.view==='lead' && state.leadId===deck.id){
-      tlList.innerHTML=''; leadTimeline(deck, meetings).forEach(e => tlList.appendChild(timelineRow(e)));
+  const paintTL = (meetings, emails, scopeMissing) => {
+    if (!(state.view==='lead' && state.leadId===deck.id)) return;
+    tlList.innerHTML='';
+    leadTimeline(deck, meetings, emails).forEach(e => tlList.appendChild(timelineRow(e)));
+    if (scopeMissing && AUTH){
+      tlList.appendChild(el('div',{class:'lead-tl-connect'},
+        el('span',{class:'lead-tl-sub'},'Connect Gmail (read-only) to see your email history with this contact.'),
+        el('button',{class:'btn ghost sm', type:'button', onClick:()=>reconnectGoogle(deck)},'Connect Gmail')));
     }
-  }).catch(()=>{});
+  };
+  Promise.all([ fetchMeetingsAll(deck).catch(()=>[]), fetchEmailsAll(deck).catch(()=>({items:[],scopeMissing:false})) ])
+    .then(([meetings, em]) => paintTL(meetings||[], (em&&em.items)||[], !!(em&&em.scopeMissing)));
 }
 function openLead(deck, returnView){ state.leadReturn = returnView || (state.view==='pipeline'?'pipeline':'dashboard'); state.view='lead'; state.leadId=deck.id; renderLead(deck); document.getElementById('lead-page').style.display=''; window.scrollTo(0,0); }
 function backFromLead(){ document.getElementById('lead-page').style.display='none'; const rv = state.leadReturn || 'dashboard'; state.view = rv; if (rv==='pipeline') renderPipeline(); else renderDashboard(); window.scrollTo(0,0); }
@@ -4477,7 +4526,7 @@ function buildMime(opts){
 }
 /* ---------- Auth: Google sign-in gate (also primes Gmail send) ---------- */
 const ALLOWED_DOMAIN = 'gearlocker.com';
-const GIS_SCOPE = 'openid email profile https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/calendar.events.readonly';
+const GIS_SCOPE = 'openid email profile https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.events.readonly';
 let AUTH = null;            // { email, name, picture, token, expires }
 let glTokenClient = null;
 let glTokenResolve = null, glTokenReject = null;
