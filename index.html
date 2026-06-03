@@ -1948,6 +1948,15 @@
   .settings-tab { font: inherit; font-size: 14px; font-weight: 600; color: var(--ink-4); background: none; border: none; border-bottom: 2px solid transparent; padding: 10px 16px; margin-bottom: -1px; cursor: pointer; transition: color .15s var(--easing), border-color .15s var(--easing); }
   .settings-tab:hover { color: var(--ink-2); }
   .settings-tab.active { color: var(--ink); border-bottom-color: var(--accent); }
+  .auto-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding: 18px 0; border-bottom: 1px solid var(--border); }
+  .auto-h { font-size: 15px; font-weight: 700; color: var(--ink); }
+  .auto-p { font-size: 13px; color: var(--ink-3); line-height: 1.5; margin-top: 4px; max-width: 580px; }
+  .toggle { flex-shrink: 0; cursor: pointer; }
+  .toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .toggle-track { position: relative; display: block; width: 42px; height: 24px; border-radius: 999px; background: var(--border); transition: background .15s var(--easing); }
+  .toggle-knob { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: transform .15s var(--easing); }
+  .toggle input:checked + .toggle-track { background: var(--accent); }
+  .toggle input:checked + .toggle-track .toggle-knob { transform: translateX(18px); }
   .settings-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 30px; padding-top: 22px; border-top: 1px solid var(--border); }
   .settings-saved { font-size: 13px; font-weight: 600; color: var(--success); }
   /* grade chip in the deck list + graded action */
@@ -2493,6 +2502,17 @@ function saveRubric(arr){
   saveJSON(RUBRIC_KEY, rubricConfig());
   if (cloudOn()) sbUpsert('settings', 'rubric', rubricConfig()).catch(e => console.warn('rubric sync failed', e));
 }
+
+/* ---- Automation toggles (Settings → Automation) — control the on-load background tasks ---- */
+const AUTOMATION_KEY = 'gl_automation_v1';
+let AUTOMATION = { autoGrade: true, autoFollowup: true };
+function automationConfig(){ return { type:'automation', autoGrade: !!AUTOMATION.autoGrade, autoFollowup: !!AUTOMATION.autoFollowup }; }
+function applyAutomation(cfg){ if (cfg && typeof cfg === 'object'){ if (typeof cfg.autoGrade !== 'undefined') AUTOMATION.autoGrade = !!cfg.autoGrade; if (typeof cfg.autoFollowup !== 'undefined') AUTOMATION.autoFollowup = !!cfg.autoFollowup; } }
+function saveAutomation(cfg){
+  applyAutomation(cfg);
+  saveJSON(AUTOMATION_KEY, automationConfig());
+  if (cloudOn()) sbUpsert('settings', 'automation', automationConfig()).catch(e => console.warn('automation sync failed', e));
+}
 function isRealSis(sis) { return sis && sis !== 'Other / Not sure'; }
 function fmtPayback(year1, totalReturn) {
   if (!totalReturn || totalReturn <= 0) return '—';
@@ -2604,6 +2624,7 @@ const DB = {
 const PRICING_DEFAULTS = pricingConfig();    // snapshot the hardcoded defaults (for Reset)
 applyPricing(loadJSON(PRICING_KEY, null));   // restore saved pricing (cloud copy loads in refreshFromCloud)
 applyRubric(loadJSON(RUBRIC_KEY, null));     // restore saved grading rubric
+applyAutomation(loadJSON(AUTOMATION_KEY, null));   // restore automation toggles
 function getDecks(){ return DB.decks; }
 function getTeam(){ return DB.team; }
 function persistDecks(){ saveJSON(DECKS_KEY, DB.decks); }
@@ -2654,6 +2675,8 @@ async function refreshFromCloud(){
   if (pricing){ applyPricing(pricing); saveJSON(PRICING_KEY, pricingConfig()); }
   const rubric = (settings || []).find(s => Array.isArray(s));  // the rubric doc (an array)
   if (rubric){ applyRubric(rubric); saveJSON(RUBRIC_KEY, rubricConfig()); }
+  const automation = (settings || []).find(s => s && s.type === 'automation');
+  if (automation){ applyAutomation(automation); saveJSON(AUTOMATION_KEY, automationConfig()); }
 }
 const uid = (p) => p + Math.random().toString(36).slice(2,8) + Date.now().toString(36).slice(-4);
 const initials = (name) => ((name||'').trim().split(/\s+/).map(w=>w[0]||'').slice(0,2).join('').toUpperCase()) || '–';
@@ -3050,7 +3073,7 @@ function renderSettingsTabs(){
   const tabs = document.getElementById('settings-tabs');
   if (!tabs) return;
   tabs.innerHTML = '';
-  [['pricing','Pricing'],['rubric','Call rubric'],['team','Team']].forEach(([key,label]) => {
+  [['pricing','Pricing'],['rubric','Call rubric'],['team','Team'],['automation','Automation']].forEach(([key,label]) => {
     tabs.appendChild(el('button',{ class:'settings-tab' + (settingsTab===key?' active':''), type:'button', onClick:()=>{ settingsTab = key; renderSettingsPage(); window.scrollTo(0,0); } }, label));
   });
 }
@@ -3060,6 +3083,7 @@ function renderSettingsPage(){
   body.innerHTML = '';
   if (settingsTab === 'rubric') body.appendChild(renderRubricEditor());
   else if (settingsTab === 'team') body.appendChild(renderTeamSettings());
+  else if (settingsTab === 'automation') body.appendChild(renderAutomationSettings());
   else {
     body.appendChild(el('p',{class:'settings-subtitle'}, 'Update pricing here and it flows into every deck’s pricing slide and proposal. Saved for the whole team.'));
     body.appendChild(renderSettingsForm());
@@ -3103,6 +3127,28 @@ function renderTeamSettings(){
   }
   rerender();
   return wrap;
+}
+function renderAutomationSettings(){
+  const draft = { autoGrade: !!AUTOMATION.autoGrade, autoFollowup: !!AUTOMATION.autoFollowup };
+  const status = el('span',{class:'settings-saved'}, '');
+  function toggleRow(key, title, desc){
+    const input = el('input',{type:'checkbox'}); input.checked = draft[key];
+    input.addEventListener('change', () => { draft[key] = input.checked; });
+    return el('div',{class:'auto-row'},
+      el('div',{}, el('div',{class:'auto-h'}, title), el('div',{class:'auto-p'}, desc)),
+      el('label',{class:'toggle'}, input, el('span',{class:'toggle-track'}, el('span',{class:'toggle-knob'})))
+    );
+  }
+  const save = () => { saveAutomation(draft); status.textContent = 'Saved ✓'; setTimeout(()=>status.textContent='',2500); };
+  return el('div',{},
+    el('p',{class:'settings-subtitle'}, 'Control what runs automatically when the dashboard loads. Saved for the whole team.'),
+    toggleRow('autoGrade', 'Auto-grade calls', 'When the dashboard loads, automatically pull each deck’s Fathom call and grade it against your rubric — once per deck. Turn off to grade only when you click the analyze icon. (Each grade uses Claude.)'),
+    toggleRow('autoFollowup', 'Auto-check follow-ups', 'When the dashboard loads, quietly check reps’ calendars for booked follow-ups and update the chips. Turn off to check only via the Follow-ups button.'),
+    el('div',{class:'settings-actions'},
+      el('span',{}),
+      el('div',{style:'display:flex;align-items:center;gap:16px'}, status, el('button',{class:'btn primary', type:'button', onClick:save},'Save'))
+    )
+  );
 }
 function openSettingsPage(tab){
   state.view = 'settings';
@@ -3757,7 +3803,8 @@ async function autoGradeDecks(){
 }
 function runAutoTasks(){
   // follow-up check (Google) first, then auto-grade (Edge fn) — sequential to avoid clobbering the same deck record
-  Promise.resolve(autoCheckFollowups()).catch(()=>{}).finally(() => { autoGradeDecks().catch(()=>{}); });
+  const followup = AUTOMATION.autoFollowup ? Promise.resolve(autoCheckFollowups()).catch(()=>{}) : Promise.resolve();
+  followup.finally(() => { if (AUTOMATION.autoGrade) autoGradeDecks().catch(()=>{}); });
 }
 function enterApp(){
   const ls = document.getElementById('login-screen'); if (ls) ls.style.display = 'none';
