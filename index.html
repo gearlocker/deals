@@ -3722,7 +3722,7 @@ async function composeSlidesPdf(setLabel) {
   document.head.appendChild(noTrans);
   try {
     const imgCache = new Map();
-    const slides = buildSlides();
+    const slides = buildSlides().filter(s => !s.querySelector('.next-grid'));  // omit the live-calendar slide from the exported/emailed PDF
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF({ orientation: 'landscape', unit: 'px', format: [1280, 720], compress: true });
     for (let i = 0; i < slides.length; i++) {
