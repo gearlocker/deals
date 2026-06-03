@@ -1897,7 +1897,7 @@
   }
 
   .deck-list { display: flex; flex-direction: column; gap: 8px; overflow-x: auto; }
-  .deck-cols { display: grid; grid-template-columns: minmax(0,1.9fr) minmax(0,1.5fr) 112px 116px 108px minmax(0,1.1fr) 380px; align-items: center; gap: 18px; min-width: 1120px; }
+  .deck-cols { display: grid; grid-template-columns: minmax(0,1.9fr) minmax(0,1.5fr) 116px 116px 108px minmax(0,1.05fr) 432px; align-items: center; gap: 18px; min-width: 1180px; }
   .deck-thead { padding: 2px 22px 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-4); }
   .deck-thead .th-actions { text-align: right; }
   .deck-row {
@@ -1946,6 +1946,54 @@
   .settings-subtitle { font-size: 15px; color: var(--ink-3); margin: 0 0 6px; line-height: 1.5; }
   .settings-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 30px; padding-top: 22px; border-top: 1px solid var(--border); }
   .settings-saved { font-size: 13px; font-weight: 600; color: var(--success); }
+  /* grade chip in the deck list + graded action */
+  .deck-status { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
+  .grade-chip { display: inline-flex; align-items: center; justify-content: center; min-width: 26px; height: 20px; padding: 0 7px; border-radius: 6px; font-size: 11.5px; font-weight: 800; color: #fff; letter-spacing: -0.01em; }
+  .deck-row-actions .btn.is-graded { color: var(--accent); }
+  /* rubric editor (Settings) */
+  .rub-help { font-size: 13.5px; color: var(--ink-3); margin: 0 0 14px; line-height: 1.5; }
+  .rub-total { font-weight: 600; }
+  .rub-row { padding: 14px 0; border-bottom: 1px solid var(--border); }
+  .rub-row-head { display: flex; align-items: center; gap: 12px; }
+  .rub-name { flex: 1; min-width: 0; font: inherit; font-size: 14.5px; font-weight: 600; padding: 9px 11px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff; color: var(--ink); }
+  .rub-weight-wrap { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-4); font-weight: 600; flex-shrink: 0; }
+  .rub-weight { width: 64px; font: inherit; font-size: 14px; padding: 9px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff; color: var(--ink); text-align: right; }
+  .rub-guide { width: 100%; box-sizing: border-box; margin-top: 8px; font: inherit; font-size: 13px; line-height: 1.45; padding: 9px 11px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff; color: var(--ink-2); resize: vertical; }
+  .rub-name:focus, .rub-weight:focus, .rub-guide:focus { outline: none; border-color: var(--ink); }
+  /* call-analysis page */
+  .analysis-main { max-width: 880px; margin: 0 auto; padding: 40px 40px 100px; }
+  .analysis-title { font-size: 30px; font-weight: 700; letter-spacing: -0.03em; margin: 0 0 6px; }
+  .analysis-sub { font-size: 14px; color: var(--ink-4); margin: 0 0 28px; }
+  .analysis-empty { text-align: center; padding: 56px 24px; border: 1px dashed var(--border); border-radius: var(--radius-md); background: var(--paper); }
+  .analysis-empty-icon { color: var(--accent); display: inline-flex; margin-bottom: 14px; }
+  .analysis-empty h3 { font-size: 20px; font-weight: 700; margin: 0 0 8px; }
+  .analysis-empty p { font-size: 14px; color: var(--ink-3); max-width: 480px; margin: 0 auto 22px; line-height: 1.55; }
+  .grade-hero { display: flex; align-items: center; gap: 22px; padding: 24px; background: var(--paper); border: 1px solid var(--border); border-radius: var(--radius-md); margin-bottom: 22px; }
+  .grade-badge { width: 84px; height: 84px; flex-shrink: 0; border-radius: 18px; color: #fff; font-size: 36px; font-weight: 800; letter-spacing: -0.03em; display: flex; align-items: center; justify-content: center; }
+  .grade-hero-body { min-width: 0; }
+  .grade-score { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+  .grade-headline { font-size: 15px; color: var(--ink-2); margin-top: 4px; line-height: 1.45; }
+  .grade-meta { font-size: 12.5px; color: var(--ink-4); margin-top: 8px; }
+  .grade-criteria { display: flex; flex-direction: column; gap: 12px; margin-bottom: 22px; }
+  .crit-card { padding: 16px 18px; background: var(--paper); border: 1px solid var(--border); border-radius: var(--radius-md); }
+  .crit-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .crit-name { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .crit-weight { font-size: 11px; font-weight: 600; color: var(--ink-4); background: var(--surface); padding: 2px 7px; border-radius: 5px; }
+  .crit-score { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+  .crit-bar { height: 6px; border-radius: 3px; background: #ECEAE9; margin: 10px 0; overflow: hidden; }
+  .crit-bar-fill { height: 100%; border-radius: 3px; }
+  .crit-rationale { font-size: 13.5px; color: var(--ink-3); line-height: 1.5; }
+  .grade-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 22px; }
+  .grade-col { padding: 18px 20px; background: var(--paper); border: 1px solid var(--border); border-radius: var(--radius-md); }
+  .grade-col-h { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 12px; }
+  .grade-col-h.good { color: #1f9d55; }
+  .grade-col-h.work { color: #c98a00; }
+  .grade-list { margin: 0; padding-left: 18px; }
+  .grade-list li { font-size: 13.5px; color: var(--ink-2); line-height: 1.5; margin-bottom: 8px; }
+  .grade-summary { background: var(--paper); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 18px; margin-bottom: 22px; }
+  .grade-summary summary { font-size: 13.5px; font-weight: 600; cursor: pointer; color: var(--ink-2); }
+  .grade-summary-body { font-size: 13.5px; color: var(--ink-3); line-height: 1.55; margin-top: 12px; white-space: pre-wrap; }
+  .analysis-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
   .field-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
   .field-head label { margin-bottom: 0; }
   .personalize-btn { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); border-color: var(--accent-border, #f3c9c6); }
@@ -2179,6 +2227,23 @@
     </div>
   </div>
 
+  <!-- Call analysis page -->
+  <div class="dash" id="analysis-page" style="display:none; z-index:31;">
+    <div class="dash-top">
+      <div class="dash-brand">
+        <span class="brand-mark" id="brand-mark-analysis"></span>
+        <span class="dash-brand-sub">Call analysis</span>
+      </div>
+      <div class="dash-actions">
+        <button class="btn ghost" id="analysis-back" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+          Back to decks
+        </button>
+      </div>
+    </div>
+    <div class="analysis-main"><div id="analysis-body"></div></div>
+  </div>
+
   <!-- Modals (create deck / manage team) -->
   <div class="modal-overlay" id="modal-overlay"><div class="modal" id="modal"></div></div>
 
@@ -2229,7 +2294,7 @@ const LOGO_IMG_DARK  = '<img src="' + LOGO_DATA + '" alt="GearLocker" />';
 const LOGO_IMG_WHITE = '<img src="' + LOGO_DATA + '" alt="GearLocker" style="filter:brightness(0) invert(1)" />';
 /* Legacy alias — anything that historically used LOGO_SVG gets the dark img. */
 const LOGO_SVG = LOGO_IMG_DARK;
-['brand-mark-top','brand-mark-intro','brand-mark-build','brand-mark-login','brand-mark-settings'].forEach(id => {
+['brand-mark-top','brand-mark-intro','brand-mark-build','brand-mark-login','brand-mark-settings','brand-mark-analysis'].forEach(id => {
   const el = document.getElementById(id);
   if (el) el.innerHTML = LOGO_IMG_DARK;
 });
@@ -2413,6 +2478,24 @@ function savePricing(cfg){
   saveJSON(PRICING_KEY, pricingConfig());
   if (cloudOn()) sbUpsert('settings', 'pricing', pricingConfig()).catch(e => console.warn('pricing sync failed', e));
 }
+
+/* ---- Editable call-grading rubric (Settings) — drives the AI call analysis ---- */
+const RUBRIC_KEY = 'gl_rubric_v1';
+let RUBRIC = [
+  { key:'discovery',  name:'Discovery & rapport',       weight:25, guide:'Did the rep uncover the school’s real situation — gear loss, budget pressure, current process, decision-makers — and build trust?' },
+  { key:'value',      name:'Value articulation & fit',  weight:25, guide:'Did the rep tie GearLocker specifically to what the school said (off spreadsheets, recover budget, phone check-in/out), not a generic pitch?' },
+  { key:'objections', name:'Objection handling',        weight:25, guide:'Did the rep surface and address concerns/questions (price, hardware, change management) directly and confidently?' },
+  { key:'nextsteps',  name:'Next steps & close',        weight:25, guide:'Did the rep secure a concrete next step — proposal, follow-up call booked, materials mailed, timeline — before ending?' }
+];
+function rubricConfig(){ return RUBRIC.map(c => ({ key:c.key, name:c.name, weight:Number(c.weight)||0, guide:c.guide||'' })); }
+function applyRubric(arr){
+  if (Array.isArray(arr) && arr.length) RUBRIC = arr.map((c, i) => ({ key:c.key || ('rc_'+i), name:c.name || 'Criterion', weight:Number(c.weight)||0, guide:c.guide||'' }));
+}
+function saveRubric(arr){
+  applyRubric(arr);
+  saveJSON(RUBRIC_KEY, rubricConfig());
+  if (cloudOn()) sbUpsert('settings', 'rubric', rubricConfig()).catch(e => console.warn('rubric sync failed', e));
+}
 function isRealSis(sis) { return sis && sis !== 'Other / Not sure'; }
 function fmtPayback(year1, totalReturn) {
   if (!totalReturn || totalReturn <= 0) return '—';
@@ -2523,6 +2606,7 @@ const DB = {
 };
 const PRICING_DEFAULTS = pricingConfig();    // snapshot the hardcoded defaults (for Reset)
 applyPricing(loadJSON(PRICING_KEY, null));   // restore saved pricing (cloud copy loads in refreshFromCloud)
+applyRubric(loadJSON(RUBRIC_KEY, null));     // restore saved grading rubric
 function getDecks(){ return DB.decks; }
 function getTeam(){ return DB.team; }
 function persistDecks(){ saveJSON(DECKS_KEY, DB.decks); }
@@ -2571,6 +2655,8 @@ async function refreshFromCloud(){
   DB.team = team; persistTeam();
   const pricing = (settings || []).find(s => s && s.tiers);   // the pricing doc
   if (pricing){ applyPricing(pricing); saveJSON(PRICING_KEY, pricingConfig()); }
+  const rubric = (settings || []).find(s => Array.isArray(s));  // the rubric doc (an array)
+  if (rubric){ applyRubric(rubric); saveJSON(RUBRIC_KEY, rubricConfig()); }
 }
 const uid = (p) => p + Math.random().toString(36).slice(2,8) + Date.now().toString(36).slice(-4);
 const initials = (name) => ((name||'').trim().split(/\s+/).map(w=>w[0]||'').slice(0,2).join('').toUpperCase()) || '–';
@@ -2593,7 +2679,9 @@ function deckRow(deck, team){
       deck.emailedAt
         ? el('span',{class:'sent-badge', title:'Emailed ' + fmtDate(deck.emailedAt)},
             el('span',{html:'<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 12 10 17 19 8"/></svg>'}), 'Emailed')
-        : el('span',{class:'muted'},'—')),
+        : null,
+      deck.callGrade ? el('span',{class:'grade-chip', style:'background:' + gradeColor(deck.callGrade.overall), title:'Call grade ' + deck.callGrade.overall + '/100'}, deck.callGrade.grade) : null,
+      (!deck.emailedAt && !deck.callGrade) ? el('span',{class:'muted'},'—') : null),
     el('div',{class:'deck-cell num'}, fmtDate(deck.createdAt)),
     el('div',{class:'deck-cell num'}, deck.enrollment ? fmtNum(deck.enrollment) : el('span',{class:'muted'},'—')),
     el('div',{class:'deck-cell'}, sp ? sp.name : el('span',{class:'muted'},'Unassigned')),
@@ -2608,6 +2696,8 @@ function deckRow(deck, team){
         el('span',{html:'<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>'})),
       el('button',{class:'btn ghost sm', 'data-tip':'Generate proposal PDF', onClick:(e)=>generateProposal(deck, e.currentTarget)},
         el('span',{html:'<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/></svg>'})),
+      el('button',{class:'btn ghost sm' + (deck.callGrade?' is-graded':''), 'data-tip': deck.callGrade ? ('Call grade ' + deck.callGrade.grade + ' — view analysis') : 'Analyze & grade the call', onClick:()=>openAnalysisPage(deck)},
+        el('span',{html:'<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>'})),
       el('button',{class:'btn ghost sm', 'data-tip':'Edit deck', onClick:()=>openEditModal(deck)},
         el('span',{html:'<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>'})),
       el('button',{class:'btn ghost sm', 'data-tip':'Delete deck', onClick:()=>deleteDeck(deck.id)},
@@ -2875,11 +2965,55 @@ function renderSettingsForm(){
     )
   );
 }
+function renderRubricEditor(){
+  let draft = rubricConfig();
+  const list = el('div',{});
+  const total = el('span',{class:'rub-total'});
+  const status = el('span',{class:'settings-saved'}, '');
+  function updateTotal(){
+    const sum = draft.reduce((a,c)=>a+(Number(c.weight)||0),0);
+    total.textContent = 'Weights total ' + sum + '%' + (sum===100 ? '' : ' — should add up to 100');
+    total.style.color = (sum===100) ? 'var(--ink-4)' : 'var(--accent-dark)';
+  }
+  function paint(){
+    list.innerHTML='';
+    draft.forEach((c, i) => {
+      const nameI = el('input',{type:'text', value:c.name, class:'rub-name', placeholder:'Criterion name'});
+      nameI.addEventListener('input',()=>{ draft[i].name = nameI.value; });
+      const wI = el('input',{type:'number', min:'0', max:'100', step:'5', value:c.weight, class:'rub-weight'});
+      wI.addEventListener('input',()=>{ draft[i].weight = wI.value; updateTotal(); });
+      const gI = el('textarea',{class:'rub-guide', rows:'2', placeholder:'What a strong rep does on this dimension…'}, c.guide || '');
+      gI.addEventListener('input',()=>{ draft[i].guide = gI.value; });
+      list.appendChild(el('div',{class:'rub-row'},
+        el('div',{class:'rub-row-head'},
+          nameI,
+          el('label',{class:'rub-weight-wrap'}, wI, el('span',{},'% weight')),
+          el('button',{class:'btn ghost sm danger', type:'button', onClick:()=>{ draft.splice(i,1); paint(); }},'Remove')
+        ),
+        gI
+      ));
+    });
+    updateTotal();
+  }
+  paint();
+  const save = ()=>{ saveRubric(draft); status.textContent='Saved ✓'; setTimeout(()=>status.textContent='',2500); };
+  return el('div',{},
+    el('div',{class:'setting-sec'},'Sales-call grading rubric'),
+    el('p',{class:'rub-help'},'When you analyze a Fathom call, Claude scores the rep on these criteria. Each is scored 0–100, then weighted into an overall grade. ', total, '.'),
+    list,
+    el('button',{class:'btn ghost sm', type:'button', onClick:()=>{ draft.push({key:'rc_'+uid(''), name:'New criterion', weight:0, guide:''}); paint(); }},'+ Add criterion'),
+    el('div',{class:'settings-actions'},
+      el('span',{}),
+      el('div',{style:'display:flex;align-items:center;gap:16px'}, status, el('button',{class:'btn primary', type:'button', onClick:save},'Save rubric'))
+    )
+  );
+}
 function openSettingsPage(){
   state.view = 'settings';
   const body = document.getElementById('settings-body');
   body.innerHTML = '';
   body.appendChild(renderSettingsForm());
+  body.appendChild(renderRubricEditor());
   document.getElementById('settings-page').style.display = '';
   window.scrollTo(0,0);
 }
@@ -2889,6 +3023,108 @@ function backFromSettings(){
   renderDashboard();
   window.scrollTo(0,0);
 }
+
+/* ---------- AI call analysis (Fathom transcript + summary → graded scorecard) ---------- */
+function gradeColor(n){ return n >= 80 ? '#1f9d55' : n >= 60 ? '#c98a00' : '#c62b25'; }
+function analyzeCall(deck, statusEl, onDone){
+  const to = (deck.contactEmail || '').trim();
+  if (!/.+@.+\..+/.test(to)){ statusEl.textContent = 'Add the prospect’s email to the deck first — we match the call by it.'; return false; }
+  if (!SUPABASE_URL){ statusEl.textContent = 'Cloud isn’t configured, so we can’t reach the analysis service.'; return false; }
+  statusEl.textContent = 'Pulling the call from Fathom and grading it… this can take ~30 seconds.';
+  fetch(SUPABASE_URL + '/functions/v1/analyze-call', {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + SUPABASE_ANON_KEY, 'apikey': SUPABASE_ANON_KEY },
+    body: JSON.stringify({ contactEmail: to, school: deck.school, rubric: rubricConfig() })
+  }).then(async r => {
+    const data = await r.json().catch(()=>({ error:'Unexpected response from the service.' }));
+    if (!r.ok) throw new Error(data.error || ('Error ' + r.status));
+    const cur = DB.decks.find(d => d.id === deck.id) || deck;
+    const grade = Object.assign({}, data, { analyzedAt: new Date().toISOString() });
+    upsertDeck(Object.assign({}, cur, { callGrade: grade, updatedAt: new Date().toISOString() }));
+    onDone();
+  }).catch(e => { statusEl.textContent = 'Couldn’t analyze: ' + (e && e.message ? e.message : e); });
+  return true;
+}
+function renderAnalysis(deck){
+  const body = document.getElementById('analysis-body');
+  body.innerHTML = '';
+  const sp = getTeam().find(p => p.id === deck.salespersonId);
+  const g = deck.callGrade;
+  body.appendChild(el('h1',{class:'analysis-title'}, deck.school));
+  body.appendChild(el('p',{class:'analysis-sub'}, [sp ? sp.name : null, deck.contactEmail || 'no contact email on this deck'].filter(Boolean).join('  ·  ')));
+
+  if (!g){
+    const status = el('div',{class:'email-status'}, '');
+    const btn = el('button',{class:'btn primary'}, 'Analyze this call');
+    btn.addEventListener('click', () => { btn.disabled = true; if (!analyzeCall(deck, status, () => renderAnalysis(getDecks().find(d=>d.id===deck.id)||deck))) btn.disabled = false; });
+    body.appendChild(el('div',{class:'analysis-empty'},
+      el('div',{class:'analysis-empty-icon', html:'<svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>'}),
+      el('h3',{}, 'Grade this sales call'),
+      el('p',{}, 'We’ll pull ' + (deck.contactFirst || 'the prospect') + '’s call from Fathom (matched by ' + (deck.contactEmail || 'their email') + '), then have Claude grade the rep against your rubric.'),
+      btn, status
+    ));
+    return;
+  }
+
+  body.appendChild(el('div',{class:'grade-hero'},
+    el('div',{class:'grade-badge', style:'background:' + gradeColor(g.overall)}, g.grade || ''),
+    el('div',{class:'grade-hero-body'},
+      el('div',{class:'grade-score'}, (g.overall != null ? g.overall : '—') + ' / 100'),
+      g.headline ? el('div',{class:'grade-headline'}, g.headline) : null,
+      el('div',{class:'grade-meta'}, [g.meetingTitle, g.meetingDate, g.analyzedAt ? 'Analyzed ' + fmtDate(g.analyzedAt) : null].filter(Boolean).join('  ·  '))
+    )
+  ));
+
+  const crit = el('div',{class:'grade-criteria'});
+  (g.criteria || []).forEach(c => {
+    crit.appendChild(el('div',{class:'crit-card'},
+      el('div',{class:'crit-head'},
+        el('div',{class:'crit-name'}, c.name, c.weight != null ? el('span',{class:'crit-weight'}, c.weight + '%') : null),
+        el('div',{class:'crit-score', style:'color:' + gradeColor(c.score)}, String(c.score))
+      ),
+      el('div',{class:'crit-bar'}, el('div',{class:'crit-bar-fill', style:'width:' + Math.max(0,Math.min(100,c.score)) + '%;background:' + gradeColor(c.score)})),
+      el('div',{class:'crit-rationale'}, c.rationale || '')
+    ));
+  });
+  body.appendChild(crit);
+
+  body.appendChild(el('div',{class:'grade-cols'},
+    el('div',{class:'grade-col'},
+      el('h4',{class:'grade-col-h good'}, 'What went well'),
+      el('ul',{class:'grade-list'}, ...(g.strengths || []).map(s => el('li',{}, s)))
+    ),
+    el('div',{class:'grade-col'},
+      el('h4',{class:'grade-col-h work'}, 'Coaching for next time'),
+      el('ul',{class:'grade-list'}, ...(g.improvements || []).map(s => el('li',{}, s)))
+    )
+  ));
+
+  if (g.summary) body.appendChild(el('details',{class:'grade-summary'},
+    el('summary',{}, 'Fathom call summary'),
+    el('div',{class:'grade-summary-body'}, g.summary)
+  ));
+
+  const reStatus = el('div',{class:'email-status'}, '');
+  const reBtn = el('button',{class:'btn'}, 'Re-analyze');
+  reBtn.addEventListener('click', () => { reBtn.disabled = true; if (!analyzeCall(deck, reStatus, () => renderAnalysis(getDecks().find(d=>d.id===deck.id)||deck))) reBtn.disabled = false; });
+  body.appendChild(el('div',{class:'analysis-foot'},
+    g.recordingUrl ? el('a',{class:'btn ghost', href:g.recordingUrl, target:'_blank', rel:'noopener'}, 'Open recording in Fathom') : el('span',{}),
+    el('div',{style:'display:flex;align-items:center;gap:14px'}, reStatus, reBtn)
+  ));
+}
+function openAnalysisPage(deck){
+  state.view = 'analysis';
+  document.getElementById('analysis-page').style.display = '';
+  renderAnalysis(deck);
+  window.scrollTo(0,0);
+}
+function backFromAnalysis(){
+  state.view = 'dashboard';
+  document.getElementById('analysis-page').style.display = 'none';
+  renderDashboard();
+  window.scrollTo(0,0);
+}
+document.getElementById('analysis-back').addEventListener('click', backFromAnalysis);
 
 document.getElementById('new-deck-btn').addEventListener('click', openCreateModal);
 document.getElementById('team-btn').addEventListener('click', openTeamModal);
