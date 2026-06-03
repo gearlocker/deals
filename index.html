@@ -1929,6 +1929,33 @@
   .personalize-btn { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); border-color: var(--accent-border, #f3c9c6); }
   .personalize-btn:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
   .personalize-btn svg { flex-shrink: 0; }
+  /* login gate */
+  .login-screen { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; background: var(--paper); padding: 24px; }
+  .login-card { width: 100%; max-width: 420px; text-align: center; }
+  .login-logo { height: 34px; margin: 0 auto 30px; }
+  .login-h { font-size: 27px; font-weight: 700; letter-spacing: -0.025em; margin: 0 0 10px; color: var(--ink); }
+  .login-sub { font-size: 15px; color: var(--ink-3); margin: 0 0 30px; line-height: 1.55; }
+  .login-btn { display: inline-flex; align-items: center; gap: 11px; font: inherit; font-size: 15px; font-weight: 600; color: var(--ink); background: #fff; border: 1px solid var(--border); border-radius: 999px; padding: 12px 24px; cursor: pointer; transition: all .15s var(--easing); }
+  .login-btn:hover:not(:disabled) { border-color: var(--ink-3); box-shadow: 0 6px 20px -10px rgba(0,0,0,.3); }
+  .login-btn:disabled { opacity: .6; cursor: default; }
+  .login-btn .g-icon { display: inline-flex; width: 18px; height: 18px; }
+  .login-err { font-size: 13px; color: var(--accent-dark); margin-top: 18px; min-height: 18px; font-weight: 500; }
+  .login-foot { font-size: 12.5px; color: var(--ink-4); margin-top: 26px; }
+  /* signed-in user chip */
+  .user-chip { display: inline-flex; align-items: center; gap: 8px; font: inherit; font-size: 13px; font-weight: 600; color: var(--ink-2); background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px 13px 4px 4px; cursor: pointer; transition: border-color .15s var(--easing); }
+  .user-chip:hover { border-color: var(--ink-3); }
+  .user-chip img, .user-chip .avatar { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+  .user-chip .avatar { background: var(--accent); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+  /* email preview overlay (sits above the email drawer) */
+  .preview-overlay { position: fixed; inset: 0; z-index: 70; background: rgba(20,17,16,.5); backdrop-filter: blur(2px); display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .preview-card { background: #fff; border-radius: var(--radius-lg); width: 100%; max-width: 680px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 30px 80px -20px rgba(0,0,0,.5); }
+  .preview-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 22px; border-bottom: 1px solid var(--border); }
+  .preview-h { font-size: 16px; font-weight: 700; letter-spacing: -0.02em; }
+  .preview-close { border: none; background: none; font-size: 16px; cursor: pointer; color: var(--ink-3); line-height: 1; padding: 6px; border-radius: 6px; }
+  .preview-close:hover { background: var(--surface); color: var(--ink); }
+  .preview-meta { padding: 13px 22px; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--ink-2); display: flex; flex-direction: column; gap: 4px; background: var(--surface); }
+  .preview-meta b { color: var(--ink-4); font-weight: 600; margin-right: 4px; }
+  .preview-frame { width: 100%; flex: 1; min-height: 380px; border: none; background: #fff; }
   /* hover tooltips on the row action buttons */
   .deck-row-actions .btn[data-tip] { position: relative; }
   .deck-row-actions .btn[data-tip]:hover::after {
@@ -2014,7 +2041,21 @@
 </style>
 </head>
 <body>
-<div class="app" id="app">
+<!-- Login gate (Google sign-in, gearlocker.com only) -->
+<div class="login-screen" id="login-screen" style="display:none">
+  <div class="login-card">
+    <span class="brand-mark login-logo" id="brand-mark-login"></span>
+    <h1 class="login-h">Sign in to GearLocker</h1>
+    <p class="login-sub">The deck manager for the GearLocker sales team. Sign in with your GearLocker Google account to continue.</p>
+    <button class="login-btn" id="login-btn" type="button">
+      <span class="g-icon" aria-hidden="true"><svg viewBox="0 0 18 18" width="18" height="18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.71-1.57 2.68-3.89 2.68-6.62Z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18Z"/><path fill="#FBBC05" d="M3.97 10.72a5.41 5.41 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33Z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58Z"/></svg></span>
+      <span class="login-btn-label">Sign in with Google</span>
+    </button>
+    <div class="login-err" id="login-err"></div>
+    <div class="login-foot">Only @gearlocker.com accounts can sign in.</div>
+  </div>
+</div>
+<div class="app" id="app" style="display:none">
   <!-- Top bar -->
   <div class="topbar" id="topbar">
     <div class="brand">
@@ -2038,6 +2079,7 @@
         <span class="sync-badge badge-local" id="sync-badge">Saved on this computer</span>
       </div>
       <div class="dash-actions">
+        <button class="user-chip" id="user-chip" type="button" style="display:none"></button>
         <button class="btn ghost sm" id="refresh-btn" type="button" title="Refresh from team" style="display:none">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
         </button>
@@ -2121,7 +2163,7 @@ const LOGO_IMG_DARK  = '<img src="' + LOGO_DATA + '" alt="GearLocker" />';
 const LOGO_IMG_WHITE = '<img src="' + LOGO_DATA + '" alt="GearLocker" style="filter:brightness(0) invert(1)" />';
 /* Legacy alias — anything that historically used LOGO_SVG gets the dark img. */
 const LOGO_SVG = LOGO_IMG_DARK;
-['brand-mark-top','brand-mark-intro','brand-mark-build'].forEach(id => {
+['brand-mark-top','brand-mark-intro','brand-mark-build','brand-mark-login'].forEach(id => {
   const el = document.getElementById(id);
   if (el) el.innerHTML = LOGO_IMG_DARK;
 });
@@ -3022,20 +3064,118 @@ function buildMime(opts){
   m += '--' + mixed + '--';
   return m;
 }
-function getGoogleAccessToken(){
-  return new Promise((resolve, reject) => {
-    if (!GOOGLE_CLIENT_ID) return reject(new Error('Google isn’t connected yet. Add your OAuth Client ID (GOOGLE_CLIENT_ID) — see setup steps.'));
-    if (!(window.google && google.accounts && google.accounts.oauth2)) return reject(new Error('Google sign-in didn’t load — check your connection and try again.'));
-    try {
-      const client = google.accounts.oauth2.initTokenClient({
-        client_id: GOOGLE_CLIENT_ID,
-        scope: 'https://www.googleapis.com/auth/gmail.send',
-        callback: (resp) => { (resp && resp.access_token) ? resolve(resp.access_token) : reject(new Error('Google didn’t return an access token.')); },
-        error_callback: () => reject(new Error('Google sign-in was cancelled or blocked.'))
-      });
-      client.requestAccessToken();
-    } catch (e) { reject(e); }
+/* ---------- Auth: Google sign-in gate (also primes Gmail send) ---------- */
+const ALLOWED_DOMAIN = 'gearlocker.com';
+const GIS_SCOPE = 'openid email profile https://www.googleapis.com/auth/gmail.send';
+let AUTH = null;            // { email, name, picture, token, expires }
+let glTokenClient = null;
+let glTokenResolve = null, glTokenReject = null;
+
+function saveAuth(){ try { localStorage.setItem('gl_auth', JSON.stringify(AUTH)); } catch(e){} }
+function restoreAuth(){
+  try {
+    const a = JSON.parse(localStorage.getItem('gl_auth') || 'null');
+    if (a && a.email && String(a.email).toLowerCase().endsWith('@' + ALLOWED_DOMAIN)) { AUTH = a; return AUTH; }
+  } catch(e){}
+  return null;
+}
+function ensureTokenClient(){
+  if (glTokenClient) return glTokenClient;
+  if (!(window.google && google.accounts && google.accounts.oauth2)) throw new Error('Google sign-in didn’t load — check your connection and try again.');
+  glTokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_ID,
+    scope: GIS_SCOPE,
+    hd: ALLOWED_DOMAIN,
+    callback: (resp) => { (resp && resp.access_token) ? (glTokenResolve && glTokenResolve(resp)) : (glTokenReject && glTokenReject(new Error('Google didn’t return an access token.'))); },
+    error_callback: (err) => { glTokenReject && glTokenReject(new Error(err && err.type === 'popup_closed' ? 'Sign-in was cancelled.' : 'Google sign-in was blocked or cancelled.')); }
   });
+  return glTokenClient;
+}
+function requestToken(prompt){
+  return new Promise((resolve, reject) => {
+    if (!GOOGLE_CLIENT_ID) return reject(new Error('Google isn’t connected yet (no Client ID configured).'));
+    let client;
+    try { client = ensureTokenClient(); } catch(e){ return reject(e); }
+    glTokenResolve = resolve; glTokenReject = reject;
+    try { client.requestAccessToken(prompt != null ? { prompt: prompt } : {}); } catch(e){ reject(e); }
+  });
+}
+async function signIn(){
+  const resp = await requestToken('');
+  let info;
+  try {
+    const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: 'Bearer ' + resp.access_token } });
+    if (!r.ok) throw new Error('x');
+    info = await r.json();
+  } catch(e){ throw new Error('Couldn’t read your Google profile — try again.'); }
+  const email = String(info.email || '').toLowerCase();
+  if (!email.endsWith('@' + ALLOWED_DOMAIN)){
+    try { google.accounts.oauth2.revoke(resp.access_token, ()=>{}); } catch(e){}
+    throw new Error('Use your @' + ALLOWED_DOMAIN + ' Google account to sign in.');
+  }
+  AUTH = { email: email, name: info.name || email, picture: info.picture || '',
+    token: resp.access_token, expires: Date.now() + ((resp.expires_in || 3300) * 1000) - 60000 };
+  saveAuth();
+  return AUTH;
+}
+function signOut(){
+  try { if (AUTH && AUTH.token) google.accounts.oauth2.revoke(AUTH.token, ()=>{}); } catch(e){}
+  AUTH = null;
+  try { localStorage.removeItem('gl_auth'); } catch(e){}
+  showLogin();
+}
+/* Reused by the email send — returns a live gmail.send token, refreshing silently if needed. */
+async function getGoogleAccessToken(){
+  if (AUTH && AUTH.token && Date.now() < AUTH.expires) return AUTH.token;
+  let resp;
+  try { resp = await requestToken('none'); }      // silent refresh
+  catch(e){ resp = await requestToken(''); }       // fall back to interactive
+  if (!resp || !resp.access_token) throw new Error('Google sign-in needed.');
+  AUTH = Object.assign({}, AUTH || {}, { token: resp.access_token, expires: Date.now() + ((resp.expires_in || 3300) * 1000) - 60000 });
+  saveAuth();
+  return AUTH.token;
+}
+function enterApp(){
+  const ls = document.getElementById('login-screen'); if (ls) ls.style.display = 'none';
+  const app = document.getElementById('app'); if (app) app.style.display = '';
+  renderUserChip();
+  if (!enterApp._booted){ enterApp._booted = true; initDashboard(); }
+}
+function showLogin(){
+  const app = document.getElementById('app'); if (app) app.style.display = 'none';
+  const ls = document.getElementById('login-screen'); if (ls) ls.style.display = 'flex';
+}
+function renderUserChip(){
+  const chip = document.getElementById('user-chip');
+  if (!chip || !AUTH) return;
+  chip.style.display = '';
+  chip.innerHTML = '';
+  const first = String(AUTH.name || AUTH.email).trim().split(/\s+/)[0];
+  const avatar = AUTH.picture
+    ? el('img', { src: AUTH.picture, alt: '', referrerpolicy: 'no-referrer' })
+    : el('span', { class: 'avatar' }, String(first || '?').slice(0,1).toUpperCase());
+  chip.appendChild(avatar);
+  chip.appendChild(el('span', {}, first));
+  chip.title = 'Signed in as ' + AUTH.email + ' — click to sign out';
+  chip.onclick = () => { if (confirm('Sign out of GearLocker?')) signOut(); };
+}
+function bootAuth(){
+  if (!GOOGLE_CLIENT_ID){ enterApp(); return; }   // not configured → don't lock anyone out
+  if (restoreAuth()){ enterApp(); return; }
+  showLogin();
+  const btn = document.getElementById('login-btn');
+  const err = document.getElementById('login-err');
+  if (btn && !btn._wired){
+    btn._wired = true;
+    btn.addEventListener('click', async () => {
+      err.textContent = ''; btn.disabled = true;
+      const lbl = btn.querySelector('.login-btn-label'); const orig = lbl ? lbl.textContent : '';
+      if (lbl) lbl.textContent = 'Signing in…';
+      try { await signIn(); enterApp(); }
+      catch(e){ err.textContent = (e && e.message) ? e.message : 'Sign-in failed.'; }
+      finally { btn.disabled = false; if (lbl) lbl.textContent = orig || 'Sign in with Google'; }
+    });
+  }
 }
 function defaultEmailBody(deck, sp){
   const first = (deck.contactFirst || '').trim();
@@ -3070,6 +3210,35 @@ function emailSignatureHtml(sp){
     +   '<tr><td style="font-size:12px;padding-top:2px"><a href="https://gearlocker.com" style="color:#6B6B6B;text-decoration:none">gearlocker.com</a></td></tr>'
     + '</table>';
 }
+/* Build the full email HTML (body + branded signature). For preview, the logo is
+   swapped from cid:gllogo to the embedded data URI so it renders in the browser. */
+function composeEmailHtml(bodyValue, sp, preview){
+  const safe = String(bodyValue || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const bodyHtml = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1E1715;line-height:1.55">' + safe.replace(/\n/g,'<br>') + '</div>';
+  let sig = emailSignatureHtml(sp);
+  if (preview) sig = sig.replace('cid:gllogo', LOGO_DATA);
+  return bodyHtml + sig;
+}
+function openEmailPreview(opts){
+  const wrap = el('div',{class:'preview-overlay'});
+  const frame = el('iframe',{class:'preview-frame', title:'Email preview'});
+  const card = el('div',{class:'preview-card'},
+    el('div',{class:'preview-head'},
+      el('div',{class:'preview-h'},'Email preview'),
+      el('button',{class:'preview-close', type:'button', title:'Close', onClick:()=>wrap.remove()}, '✕')
+    ),
+    el('div',{class:'preview-meta'},
+      el('div',{}, el('b',{},'To'), opts.to || '—'),
+      el('div',{}, el('b',{},'Subject'), opts.subject || '—')
+    ),
+    frame
+  );
+  wrap.appendChild(card);
+  wrap.addEventListener('click', e => { if (e.target === wrap) wrap.remove(); });
+  document.body.appendChild(wrap);
+  frame.setAttribute('srcdoc',
+    '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><style>body{margin:0;padding:24px;background:#fff;color:#1E1715}</style></head><body>' + opts.html + '</body></html>');
+}
 function openEmailModal(deck){
   closeModal();
   const sp = getTeam().find(p => p.id === deck.salespersonId) || null;
@@ -3100,9 +3269,7 @@ function openEmailModal(deck){
       const deckB64 = deckPdf.output('datauristring').split('base64,')[1];
       const propB64 = propPdf.output('datauristring').split('base64,')[1];
       set('Sending…');
-      const safe = bodyArea.value.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-      const bodyHtml = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1E1715;line-height:1.55">' + safe.replace(/\n/g,'<br>') + '</div>';
-      const html = bodyHtml + emailSignatureHtml(sp);
+      const html = composeEmailHtml(bodyArea.value, sp, false);
       const logoB64 = (LOGO_DATA.split('base64,')[1] || '');
       const slug = deck.school.replace(/[^a-z0-9]+/gi,'-').replace(/^-|-$/g,'');
       const mime = buildMime({ to: to, subject: subjInput.value.trim() || ('GearLocker for ' + deck.school), html: html,
@@ -3174,6 +3341,11 @@ function openEmailModal(deck){
     status,
     el('div',{class:'modal-foot'},
       el('button',{class:'btn', onClick:closeModal},'Cancel'),
+      el('button',{class:'btn', type:'button', onClick:()=>openEmailPreview({
+        to: toInput.value.trim() || (deck.contactEmail || ''),
+        subject: subjInput.value.trim() || ('GearLocker for ' + deck.school),
+        html: composeEmailHtml(bodyArea.value, sp, true)
+      })}, 'Preview'),
       sendBtn
     )
   );
@@ -3246,7 +3418,7 @@ window.addEventListener('focus', () => {
     refreshFromCloud().then(() => { if (state.view === 'dashboard') renderDashboard(); }).catch(()=>{});
   }
 });
-initDashboard();
+bootAuth();   // gate the app behind Google sign-in (enterApp() runs initDashboard once authed)
 
 /* ---------- Deck rendering ---------- */
 /* Scale the fixed 1280×720 slide canvas to fill the stage, leaving room for the
