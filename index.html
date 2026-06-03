@@ -1894,18 +1894,22 @@
     color: var(--ink-4); margin: 0 0 14px;
   }
 
-  .deck-list { display: flex; flex-direction: column; gap: 10px; }
+  .deck-list { display: flex; flex-direction: column; gap: 8px; }
+  .deck-cols { display: grid; grid-template-columns: minmax(0,2.4fr) 118px 118px minmax(0,1.2fr) auto; align-items: center; gap: 16px; }
+  .deck-thead { padding: 2px 22px 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-4); }
+  .deck-thead .th-actions { text-align: right; }
   .deck-row {
-    display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 18px;
     background: var(--paper); border: 1px solid var(--border); border-radius: var(--radius-md);
-    padding: 18px 22px; transition: all .15s var(--easing);
+    padding: 14px 22px; transition: all .15s var(--easing);
   }
   .deck-row:hover { border-color: var(--ink-3); box-shadow: 0 4px 16px -8px rgba(0,0,0,.15); }
-  .deck-info { min-width: 0; }
-  .deck-school { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 4px; }
-  .deck-meta { font-size: 13px; color: var(--ink-4); display: flex; flex-wrap: wrap; gap: 6px 14px; }
-  .deck-meta b { color: var(--ink-3); font-weight: 600; }
-  .deck-row-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .deck-cell { min-width: 0; font-size: 14px; color: var(--ink-2); }
+  .deck-cell.num { font-variant-numeric: tabular-nums; }
+  .deck-cell .muted { color: var(--ink-4); }
+  .deck-school { font-size: 16px; font-weight: 700; letter-spacing: -0.02em; color: var(--ink); display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .deck-school .school-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .deck-contact { font-size: 12px; color: var(--ink-4); font-weight: 500; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .deck-row-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-shrink: 0; }
   .deck-empty {
     text-align: center; padding: 64px 24px; border: 1px dashed var(--border);
     border-radius: var(--radius-md); background: var(--paper);
@@ -1953,6 +1957,16 @@
     transform: translateY(8px); transition: transform .2s var(--easing);
   }
   .modal-overlay.is-open .modal { transform: none; }
+  /* right slide-in drawer variant (used by the email composer for more room) */
+  .modal-overlay.is-drawer { align-items: stretch; justify-content: flex-end; padding: 0; }
+  .modal-overlay.is-drawer .modal {
+    max-width: 640px; width: 100%; max-height: 100vh; height: 100vh;
+    border-radius: 0; padding: 34px 38px;
+    transform: translateX(48px); box-shadow: -30px 0 80px -20px rgba(0,0,0,.5);
+    transition: transform .28s var(--easing);
+  }
+  .modal-overlay.is-drawer.is-open .modal { transform: none; }
+  .modal-overlay.is-drawer .email-body { min-height: 340px; }
   .modal-h { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 4px; }
   .modal-desc { font-size: 14px; color: var(--ink-3); margin: 0 0 22px; }
   .field { margin-bottom: 16px; }
@@ -2424,18 +2438,18 @@ const deckView = { search: '', sort: 'newest', page: 1 };
 
 function deckRow(deck, team){
   const sp = team.find(p=>p.id===deck.salespersonId);
-  return el('div',{class:'deck-row'},
-    el('div',{class:'deck-info'},
-      el('div',{class:'deck-school'}, deck.school,
+  const contact = [deck.contactFirst, deck.contactLast].filter(Boolean).join(' ');
+  return el('div',{class:'deck-cols deck-row'},
+    el('div',{class:'deck-cell'},
+      el('div',{class:'deck-school'},
+        el('span',{class:'school-name'}, deck.school),
         deck.emailedAt ? el('span',{class:'sent-badge', title:'Emailed ' + fmtDate(deck.emailedAt)},
           el('span',{html:'<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 12 10 17 19 8"/></svg>'}), 'Emailed') : null),
-      el('div',{class:'deck-meta'},
-        el('span',{}, el('b',{},'Created '), fmtDate(deck.createdAt)),
-        el('span',{}, el('b',{},'Enrollment '), deck.enrollment ? fmtNum(deck.enrollment) : '—'),
-        el('span',{}, el('b',{},'Rep '), sp ? sp.name : 'Unassigned'),
-        (deck.contactFirst || deck.contactLast) ? el('span',{}, el('b',{},'Contact '), [deck.contactFirst, deck.contactLast].filter(Boolean).join(' ')) : null
-      )
+      contact ? el('div',{class:'deck-contact'}, contact + (deck.contactEmail ? '  ·  ' + deck.contactEmail : '')) : (deck.contactEmail ? el('div',{class:'deck-contact'}, deck.contactEmail) : null)
     ),
+    el('div',{class:'deck-cell num'}, fmtDate(deck.createdAt)),
+    el('div',{class:'deck-cell num'}, deck.enrollment ? fmtNum(deck.enrollment) : el('span',{class:'muted'},'—')),
+    el('div',{class:'deck-cell'}, sp ? sp.name : el('span',{class:'muted'},'Unassigned')),
     el('div',{class:'deck-row-actions'},
       el('button',{class:'btn sm primary', onClick:()=>openDeck(deck.id)},
         el('span',{html:'<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>'}), 'View'),
@@ -2500,6 +2514,13 @@ function renderDashboard(){
   if (deckView.page < 1) deckView.page = 1;
   const start = (deckView.page - 1) * DECKS_PER_PAGE;
   const pageRows = rows.slice(start, start + DECKS_PER_PAGE);
+  list.appendChild(el('div',{class:'deck-cols deck-thead'},
+    el('div',{}, 'School'),
+    el('div',{}, 'Created'),
+    el('div',{}, 'Enrollment'),
+    el('div',{}, 'Rep'),
+    el('div',{class:'th-actions'}, 'Actions')
+  ));
   pageRows.forEach(deck => list.appendChild(deckRow(deck, team)));
 
   if (pages > 1){
@@ -2521,7 +2542,7 @@ function deleteDeck(id){
 }
 
 /* --- Modals --- */
-function openModal(node){ modalEl.innerHTML=''; modalEl.appendChild(node); modalOverlay.classList.add('is-open'); }
+function openModal(node, opts){ modalEl.innerHTML=''; modalEl.appendChild(node); modalOverlay.classList.toggle('is-drawer', !!(opts && opts.drawer)); modalOverlay.classList.add('is-open'); }
 function closeModal(){ modalOverlay.classList.remove('is-open'); }
 modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeModal(); });
 
@@ -2967,23 +2988,38 @@ async function generateProposal(deck, btn){
 function b64utf8(s){ return btoa(unescape(encodeURIComponent(s))); }
 function mimeHeader(s){ return /[^\x00-\x7F]/.test(s) ? ('=?UTF-8?B?' + b64utf8(s) + '?=') : s; }
 function buildMime(opts){
-  const boundary = 'gl_' + Math.random().toString(36).slice(2);
+  const mixed = 'mix_' + Math.random().toString(36).slice(2);
+  const rel = 'rel_' + Math.random().toString(36).slice(2);
+  const inline = opts.inlineImages || [];
   let m = '';
   m += 'To: ' + opts.to + '\r\n';
   m += 'Subject: ' + mimeHeader(opts.subject) + '\r\n';
   m += 'MIME-Version: 1.0\r\n';
-  m += 'Content-Type: multipart/mixed; boundary="' + boundary + '"\r\n\r\n';
-  m += '--' + boundary + '\r\n';
+  m += 'Content-Type: multipart/mixed; boundary="' + mixed + '"\r\n\r\n';
+  // ---- body + inline images (multipart/related so cid: images render) ----
+  m += '--' + mixed + '\r\n';
+  m += 'Content-Type: multipart/related; boundary="' + rel + '"\r\n\r\n';
+  m += '--' + rel + '\r\n';
   m += 'Content-Type: text/html; charset="UTF-8"\r\nContent-Transfer-Encoding: base64\r\n\r\n';
   m += b64utf8(opts.html) + '\r\n';
+  inline.forEach(img => {
+    m += '--' + rel + '\r\n';
+    m += 'Content-Type: ' + (img.mime || 'image/png') + '\r\n';
+    m += 'Content-Transfer-Encoding: base64\r\n';
+    m += 'Content-ID: <' + img.cid + '>\r\n';
+    m += 'Content-Disposition: inline; filename="' + (img.filename || img.cid) + '"\r\n\r\n';
+    m += img.base64 + '\r\n';
+  });
+  m += '--' + rel + '--\r\n';
+  // ---- file attachments ----
   (opts.attachments || []).forEach(a => {
-    m += '--' + boundary + '\r\n';
+    m += '--' + mixed + '\r\n';
     m += 'Content-Type: application/pdf; name="' + a.filename + '"\r\n';
     m += 'Content-Transfer-Encoding: base64\r\n';
     m += 'Content-Disposition: attachment; filename="' + a.filename + '"\r\n\r\n';
     m += a.base64 + '\r\n';
   });
-  m += '--' + boundary + '--';
+  m += '--' + mixed + '--';
   return m;
 }
 function getGoogleAccessToken(){
@@ -3002,15 +3038,37 @@ function getGoogleAccessToken(){
   });
 }
 function defaultEmailBody(deck, sp){
-  const name = (deck.contactFirst || '').trim();
-  const greeting = name ? ('Hi ' + name + ',') : 'Hi,';
-  const sig = sp ? (sp.name + (sp.email ? '\n' + sp.email : '') + (sp.phone ? '\n' + sp.phone : '')) : 'The GearLocker team';
+  const first = (deck.contactFirst || '').trim();
+  const repFirst = sp ? String(sp.name).trim().split(/\s+/)[0] : '';
+  const greeting = first ? ('Hi ' + first + ',') : 'Hi,';
+  const signoff = repFirst || 'Thanks';
   return greeting + '\n\n' +
-    'Thanks for the time today. As promised, I’ve attached two things:\n' +
+    'Good talking today. Quick recap of why GearLocker fits ' + deck.school + ':\n\n' +
+    'Right now most of your gear lives on spreadsheets and in your coaches’ heads. So every spring you’re guessing at what walked off, and rebuying jerseys and pads you already owned. GearLocker puts every uniform, helmet, and ball on one screen. Coaches check gear in and out from their phone in a few taps, parents get an automatic note (with the replacement cost) the moment their kid takes something home, and you see every program in one place without chasing a single coach.\n\n' +
+    'It was built by a high school coach, so it works the way your staff already works — no new hardware, and you’re live in under 30 days.\n\n' +
+    'I’ve attached two things to dig into when you have a minute:\n' +
     '• The walkthrough we went through\n' +
     '• A proposal built for ' + deck.school + ', with pricing\n\n' +
-    'Short version: GearLocker gets every piece of your gear off the spreadsheet and onto one screen, your coaches check it in and out from their phones, and you stop paying to replace gear you already owned.\n\n' +
-    'Happy to answer anything or line up next steps whenever you’re ready.\n\n' + sig;
+    'No rush on my end — happy to answer questions or line up next steps whenever you’re ready.\n\n' +
+    signoff;
+}
+function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function emailSignatureHtml(sp){
+  const name = sp ? sp.name : 'The GearLocker Team';
+  const email = sp && sp.email ? sp.email : '';
+  const phone = sp && sp.phone ? sp.phone : '';
+  const contactLine = [
+    email ? '<a href="mailto:' + esc(email) + '" style="color:#EE362F;text-decoration:none">' + esc(email) + '</a>' : '',
+    phone ? esc(phone) : ''
+  ].filter(Boolean).join('&nbsp;&nbsp;&middot;&nbsp;&nbsp;');
+  return ''
+    + '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:26px;border-top:1px solid #E8E7E7;padding-top:16px;font-family:Arial,Helvetica,sans-serif">'
+    +   '<tr><td style="padding-bottom:9px"><img src="cid:gllogo" alt="GearLocker" height="22" style="display:block;height:22px;border:0;outline:none"></td></tr>'
+    +   '<tr><td style="font-size:14px;font-weight:bold;color:#1E1715;line-height:1.3">' + esc(name) + '</td></tr>'
+    +   '<tr><td style="font-size:12px;color:#6B6B6B;padding-top:1px">GearLocker</td></tr>'
+    +   (contactLine ? '<tr><td style="font-size:12px;color:#6B6B6B;padding-top:4px">' + contactLine + '</td></tr>' : '')
+    +   '<tr><td style="font-size:12px;padding-top:2px"><a href="https://gearlocker.com" style="color:#6B6B6B;text-decoration:none">gearlocker.com</a></td></tr>'
+    + '</table>';
 }
 function openEmailModal(deck){
   closeModal();
@@ -3043,9 +3101,12 @@ function openEmailModal(deck){
       const propB64 = propPdf.output('datauristring').split('base64,')[1];
       set('Sending…');
       const safe = bodyArea.value.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-      const html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1E1715;line-height:1.55">' + safe.replace(/\n/g,'<br>') + '</div>';
+      const bodyHtml = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1E1715;line-height:1.55">' + safe.replace(/\n/g,'<br>') + '</div>';
+      const html = bodyHtml + emailSignatureHtml(sp);
+      const logoB64 = (LOGO_DATA.split('base64,')[1] || '');
       const slug = deck.school.replace(/[^a-z0-9]+/gi,'-').replace(/^-|-$/g,'');
       const mime = buildMime({ to: to, subject: subjInput.value.trim() || ('GearLocker for ' + deck.school), html: html,
+        inlineImages: [ { cid: 'gllogo', base64: logoB64, mime: 'image/png', filename: 'gearlocker.png' } ],
         attachments: [
           { filename: slug + '-presentation.pdf', base64: deckB64 },
           { filename: slug + '-proposal.pdf', base64: propB64 }
@@ -3109,14 +3170,14 @@ function openEmailModal(deck){
       bodyArea),
     el('div',{class:'email-attach'},
       el('span',{html:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>'}),
-      'Attaching the presentation PDF and proposal PDF'),
+      'Attaching the presentation PDF and proposal PDF · your GearLocker signature (logo + contact) is added automatically'),
     status,
     el('div',{class:'modal-foot'},
       el('button',{class:'btn', onClick:closeModal},'Cancel'),
       sendBtn
     )
   );
-  openModal(body);
+  openModal(body, { drawer: true });
 }
 
 /* --- Persist the rep's live discovery answers back to the saved deck --- */
