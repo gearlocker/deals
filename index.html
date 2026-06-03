@@ -2045,6 +2045,25 @@
   .lb-main { max-width: 1000px; margin: 0 auto; padding: 40px 40px 100px; }
   .lb-title { font-size: 30px; font-weight: 700; letter-spacing: -0.03em; margin: 0 0 8px; }
   .lb-sub { font-size: 14px; color: var(--ink-3); margin: 0 0 28px; line-height: 1.5; max-width: 720px; }
+  /* analytics dashboard */
+  .kpi-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin: 0 0 28px; }
+  .kpi { background: var(--paper); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px 18px; }
+  .kpi-val { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; color: var(--ink); font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .kpi-lbl { font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-4); margin-top: 6px; }
+  .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .metric-card { background: var(--paper); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 20px 22px 18px; }
+  .metric-h { font-size: 14px; font-weight: 700; color: var(--ink); margin: 0 0 18px; }
+  .chart { width: 100%; }
+  .chart-bars { display: flex; align-items: flex-end; gap: 10px; height: 168px; }
+  .chart-col { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; min-width: 0; }
+  .chart-total { font-size: 11px; font-weight: 700; color: var(--ink-3); font-variant-numeric: tabular-nums; margin-bottom: 4px; height: 14px; }
+  .chart-stack { display: flex; flex-direction: column-reverse; width: 100%; max-width: 46px; flex: 1; border-radius: 4px; overflow: hidden; background: var(--wash, #f4f3ef); }
+  .chart-seg { width: 100%; min-height: 2px; }
+  .chart-xlabel { font-size: 11px; font-weight: 600; color: var(--ink-4); margin-top: 8px; }
+  .chart-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 16px; }
+  .chart-leg { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-3); }
+  .chart-dot { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+  @media (max-width: 860px) { .kpi-row { grid-template-columns: repeat(3, 1fr); } .metric-grid { grid-template-columns: 1fr; } }
   .lb-table { display: flex; flex-direction: column; gap: 6px; }
   .lb-row { display: grid; grid-template-columns: minmax(0,1.5fr) 64px 1.2fr 1.3fr 1.2fr 0.95fr 1.1fr; align-items: center; gap: 12px; padding: 14px 18px; background: var(--paper); border: 1px solid var(--border); border-radius: var(--radius-md); }
   .lb-head { background: none; border: none; padding: 0 18px 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-4); }
@@ -2467,6 +2486,12 @@
   <div class="dash section-layer" id="tasks-page" style="display:none;">
     <div class="dash-top" id="tasks-nav"></div>
     <div class="lb-main"><div id="tasks-body"></div></div>
+  </div>
+
+  <!-- Analytics dashboard page -->
+  <div class="dash section-layer" id="metrics-page" style="display:none;">
+    <div class="dash-top"></div>
+    <div class="pl-main"><div id="metrics-body"></div></div>
   </div>
 
   <!-- Modals (create deck / manage team) -->
@@ -3181,7 +3206,10 @@ function openEditModal(deck){
   const save = () => {
     const school = schoolInput.value.trim();
     if (school.length < 2){ schoolInput.focus(); return; }
-    upsertDeck(Object.assign({}, deck, { school: school, salespersonId: repSelect.value, stage: stageSelect.value,
+    const newStage = stageSelect.value;
+    const sd = Object.assign({}, deck.stageDates||{});
+    if (newStage && !sd[newStage]) sd[newStage] = new Date().toISOString();
+    upsertDeck(Object.assign({}, deck, { school: school, salespersonId: repSelect.value, stage: newStage, stageDates: sd,
       contactFirst: firstInput.value.trim(), contactLast: lastInput.value.trim(), contactEmail: emailInput.value.trim(),
       contactPhone: phoneInput.value.trim(), amount: amountInput.value.trim(), leadSource: sourceSelect.value,
       updatedAt: new Date().toISOString() }));
@@ -3627,7 +3655,7 @@ function renderPipeline(){
     const contact = [d.contactFirst, d.contactLast].filter(Boolean).join(' ');
     const mover = el('select',{class:'pl-move'}, ...STAGES.map(s=>el('option',{value:s.key}, s.short)));
     mover.value = dealStage(d);
-    mover.addEventListener('change', () => { const cur = DB.decks.find(x=>x.id===d.id)||d; upsertDeck(Object.assign({}, cur, { stage: mover.value, updatedAt: new Date().toISOString() })); renderPipeline(); });
+    mover.addEventListener('change', () => { setDeckStage(d.id, mover.value); renderPipeline(); });
     const lt = lastTouchDate(d);
     list.appendChild(el('div',{class:'pl-row'},
       el('div',{class:'pl-deal', onClick:()=>openLead(d, 'pipeline')},
@@ -3744,7 +3772,7 @@ function renderLead(deck){
   const contact = [deck.contactFirst, deck.contactLast].filter(Boolean).join(' ');
   const stageSel = el('select',{class:'lead-stage'}, ...STAGES.map(s=>el('option',{value:s.key}, s.label)));
   stageSel.value = dealStage(deck);
-  stageSel.addEventListener('change', ()=>{ saveDeckPatch(deck, { stage: stageSel.value }); renderLead(deck); });
+  stageSel.addEventListener('change', ()=>{ setDeckStage(deck.id, stageSel.value); Object.assign(deck, DB.decks.find(x=>x.id===deck.id)||deck); renderLead(deck); });
   body.appendChild(el('div',{class:'lead-headrow'},
     el('div',{}, el('h1',{class:'lead-title'}, deck.school), el('div',{class:'lead-sub'}, contact || deck.contactEmail || '')),
     el('div',{class:'lead-head-right'}, el('span',{class:'stage-chip stage-' + dealStage(deck)}, stageMeta(dealStage(deck)).short), stageSel)
@@ -3795,10 +3823,10 @@ function backFromLead(){ document.getElementById('lead-page').style.display='non
 document.getElementById('lead-back').addEventListener('click', backFromLead);
 
 /* ---------- CRM section navigation ---------- */
-const SECTION_PAGE = { leads:'dashboard', pipeline:'pipeline-page', tasks:'tasks-page', performance:'leaderboard-page', settings:'settings-page' };
-const SECTION_VIEW = { leads:'dashboard', pipeline:'pipeline', tasks:'tasks', performance:'leaderboard', settings:'settings' };
-const NAV_TABS = [ {key:'leads',label:'Leads'}, {key:'pipeline',label:'Pipeline'}, {key:'tasks',label:'Nudges & Tasks'}, {key:'performance',label:'Performance'}, {key:'settings',label:'Settings'} ];
-const ALL_LAYER_IDS = ['dashboard','pipeline-page','leaderboard-page','settings-page','tasks-page','lead-page'];
+const SECTION_PAGE = { leads:'dashboard', pipeline:'pipeline-page', dashboard:'metrics-page', tasks:'tasks-page', performance:'leaderboard-page', settings:'settings-page' };
+const SECTION_VIEW = { leads:'dashboard', pipeline:'pipeline', dashboard:'metrics', tasks:'tasks', performance:'leaderboard', settings:'settings' };
+const NAV_TABS = [ {key:'leads',label:'Leads'}, {key:'pipeline',label:'Pipeline'}, {key:'dashboard',label:'Dashboard'}, {key:'tasks',label:'Nudges & Tasks'}, {key:'performance',label:'Performance'}, {key:'settings',label:'Settings'} ];
+const ALL_LAYER_IDS = ['dashboard','pipeline-page','metrics-page','leaderboard-page','settings-page','tasks-page','lead-page'];
 function hideAllSections(){ ALL_LAYER_IDS.forEach(id => { const e = document.getElementById(id); if (e){ e.style.display='none'; if (id==='dashboard') e.classList.add('is-hidden'); } }); }
 function buildNav(active){
   const chip = el('button',{class:'user-chip', type:'button'});
@@ -3834,6 +3862,7 @@ function showSection(name){
   page.style.display = ''; if (SECTION_PAGE[name]==='dashboard') page.classList.remove('is-hidden');
   if (name==='leads') renderDashboard();
   else if (name==='pipeline') renderPipeline();
+  else if (name==='dashboard') renderMetrics();
   else if (name==='tasks') renderTasksSection();
   else if (name==='performance') renderLeaderboard();
   else if (name==='settings') renderSettingsPage();
@@ -3892,6 +3921,65 @@ function renderTasksSection(){
     ));
   });
   body.appendChild(nl);
+}
+
+/* ---------- Analytics dashboard ---------- */
+const CHART_COLORS = ['#EE362F','#1a56b0','#1f9d55','#b6781a','#7a4fd0','#0e9aa7','#c2566b','#5a6b7a'];
+function lastMonths(n){ const out=[]; const now=new Date(); for (let i=n-1;i>=0;i--){ const dt=new Date(now.getFullYear(), now.getMonth()-i, 1); out.push({ key: dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0'), label: dt.toLocaleDateString(undefined,{month:'short'}) }); } return out; }
+function monthKey(iso){ return String(iso||'').slice(0,7); }
+function committedDate(d){ if (d.stageDates && d.stageDates.verbalcommit) return d.stageDates.verbalcommit; const s=dealStage(d); return (s==='verbalcommit'||s==='closedwon') ? (d.updatedAt||d.createdAt) : null; }
+function closedWonDate(d){ if (d.stageDates && d.stageDates.closedwon) return d.stageDates.closedwon; return dealStage(d)==='closedwon' ? (d.updatedAt||d.createdAt) : null; }
+function bucketSeries(decks, dateFn, groupFn, months, valFn){
+  const groups={};
+  decks.forEach(d=>{ const date=dateFn(d); if(!date) return; const mi=months.findIndex(m=>m.key===monthKey(date)); if(mi<0) return; const g=groupFn(d)||'—'; (groups[g]=groups[g]||months.map(()=>0))[mi] += valFn?valFn(d):1; });
+  return Object.keys(groups).map((g,i)=>({ label:g, color:CHART_COLORS[i%CHART_COLORS.length], data:groups[g] }));
+}
+function stackedChart(months, series, fmt){
+  const totals=months.map((_,i)=>series.reduce((a,s)=>a+(s.data[i]||0),0));
+  const max=Math.max(1,...totals);
+  return el('div',{class:'chart'}, el('div',{class:'chart-bars'}, ...months.map((m,i)=> el('div',{class:'chart-col'},
+    el('div',{class:'chart-total'}, totals[i] ? (fmt?fmt(totals[i]):String(totals[i])) : ''),
+    el('div',{class:'chart-stack'}, ...series.map(s=>{ const v=s.data[i]||0; return v ? el('div',{class:'chart-seg', style:'height:'+(100*v/max)+'%;background:'+s.color, title:s.label+': '+(fmt?fmt(v):v)}) : null; })),
+    el('div',{class:'chart-xlabel'}, m.label)
+  ))));
+}
+function chartLegend(series){ const a=series.filter(s=>s.data.some(v=>v)); return a.length ? el('div',{class:'chart-legend'}, ...a.map(s=>el('span',{class:'chart-leg'}, el('span',{class:'chart-dot', style:'background:'+s.color}), s.label))) : null; }
+function chartCard(title, months, series, fmt){
+  const has=series.some(s=>s.data.some(v=>v));
+  return el('div',{class:'metric-card'},
+    el('div',{class:'metric-h'}, title),
+    has ? stackedChart(months, series, fmt) : el('div',{class:'lead-empty', style:'padding:30px 4px'},'No data in this window yet.'),
+    has ? chartLegend(series) : null
+  );
+}
+function kpi(label, value){ return el('div',{class:'kpi'}, el('div',{class:'kpi-val'}, value), el('div',{class:'kpi-lbl'}, label)); }
+function renderMetrics(){
+  const body=document.getElementById('metrics-body'); body.innerHTML='';
+  const decks=getDecks(), team=getTeam();
+  const repName=id=>(team.find(p=>p.id===id)||{}).name||'Unassigned';
+  body.appendChild(el('h1',{class:'lb-title'},'Dashboard'));
+  body.appendChild(el('p',{class:'lb-sub'},'Last 6 months. Leads by source; demos, verbal commits and sales by rep. Demos = graded calls; commits/sales are dated when the stage was reached.'));
+  const won=decks.filter(d=>dealStage(d)==='closedwon'), lost=decks.filter(d=>dealStage(d)==='closedlost');
+  const wonAmt=won.reduce((a,d)=>a+dealAmount(d),0), openAmt=decks.filter(isOpenDeal).reduce((a,d)=>a+dealAmount(d),0);
+  const demos=decks.filter(d=>d.callGrade&&d.callGrade.meetingDate), commits=decks.filter(committedDate);
+  const winRate=(won.length+lost.length)?Math.round(100*won.length/(won.length+lost.length)):null;
+  body.appendChild(el('div',{class:'kpi-row'},
+    kpi('Leads', String(decks.length)), kpi('Demos', String(demos.length)), kpi('Verbal commits', String(commits.length)),
+    kpi('Closed won', won.length + (wonAmt?(' · '+fmtUSD(wonAmt)):'')), kpi('Win rate', winRate!=null?winRate+'%':'—'), kpi('Open pipeline', fmtUSD(openAmt))
+  ));
+  const months=lastMonths(6);
+  body.appendChild(el('div',{class:'metric-grid'},
+    chartCard('Leads by month — by source', months, bucketSeries(decks, d=>d.createdAt, d=>d.leadSource||'Other', months)),
+    chartCard('Demos by month — by rep', months, bucketSeries(demos, d=>d.callGrade.meetingDate, d=>repName(d.salespersonId), months)),
+    chartCard('Verbal commits by month — by rep', months, bucketSeries(decks, committedDate, d=>repName(d.salespersonId), months)),
+    chartCard('Sales by month — by rep ($)', months, bucketSeries(won, closedWonDate, d=>repName(d.salespersonId), months, d=>dealAmount(d)), fmtUSD)
+  ));
+}
+function setDeckStage(deckId, newStage){
+  const cur=DB.decks.find(x=>x.id===deckId); if(!cur) return;
+  const sd=Object.assign({}, cur.stageDates||{});
+  if (newStage && !sd[newStage]) sd[newStage]=new Date().toISOString();
+  upsertDeck(Object.assign({}, cur, { stage:newStage, stageDates:sd, updatedAt:new Date().toISOString() }));
 }
 
 /* ---------- Daily digest: "what needs attention today" ---------- */
