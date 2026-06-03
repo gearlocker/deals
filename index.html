@@ -2207,6 +2207,11 @@
           <option value="oldest">Oldest first</option>
           <option value="az">School A–Z</option>
         </select>
+        <select id="deck-filter" title="Filter by follow-up">
+          <option value="all">All decks</option>
+          <option value="none">No follow-up booked</option>
+          <option value="booked">Follow-up booked</option>
+        </select>
       </div>
       <div class="dash-section-h"><span id="deck-count-label">All decks</span></div>
       <div class="deck-list" id="deck-list"></div>
@@ -2672,7 +2677,7 @@ function fmtDate(iso){ try { return new Date(iso).toLocaleDateString(undefined,{
 
 /* --- Dashboard (deck list) --- */
 const DECKS_PER_PAGE = 25;
-const deckView = { search: '', sort: 'newest', page: 1 };
+const deckView = { search: '', sort: 'newest', page: 1, filter: 'all' };
 let lastPageDecks = [];
 function currentPageDecks(){ return lastPageDecks; }
 const CAL_MINI = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>';
@@ -2770,18 +2775,29 @@ function renderDashboard(){
     const sp = team.find(p=>p.id===d.salespersonId);
     return d.school.toLowerCase().includes(q) || (sp && sp.name.toLowerCase().includes(q));
   });
+  const fStatus = deckView.filter || 'all';
+  if (fStatus !== 'all'){
+    rows = rows.filter(d => {
+      const booked = !!(d.followup && d.followup.scheduled);
+      return fStatus === 'booked' ? booked : !booked;
+    });
+  }
   rows.sort((a,b) => {
     if (deckView.sort === 'az') return String(a.school).localeCompare(String(b.school));
     const cmp = String(a.createdAt||'').localeCompare(String(b.createdAt||''));
     return deckView.sort === 'oldest' ? cmp : -cmp;
   });
 
-  countLabel.textContent = q
+  const filtered = q || fStatus !== 'all';
+  countLabel.textContent = filtered
     ? (rows.length + ' of ' + all.length + ' deck' + (all.length===1?'':'s'))
     : (all.length + ' deck' + (all.length===1?'':'s'));
 
   if (!rows.length){
-    list.appendChild(el('div',{class:'deck-none'}, 'No decks match “' + deckView.search.trim() + '”.'));
+    list.appendChild(el('div',{class:'deck-none'},
+      fStatus === 'none' ? 'No decks without a follow-up booked. 🎉'
+      : fStatus === 'booked' ? 'No decks with a follow-up booked yet.'
+      : 'No decks match “' + deckView.search.trim() + '”.'));
     return;
   }
 
@@ -2811,6 +2827,7 @@ function renderDashboard(){
 }
 document.getElementById('deck-search').addEventListener('input', e => { deckView.search = e.target.value; deckView.page = 1; renderDashboard(); });
 document.getElementById('deck-sort').addEventListener('change', e => { deckView.sort = e.target.value; deckView.page = 1; renderDashboard(); });
+document.getElementById('deck-filter').addEventListener('change', e => { deckView.filter = e.target.value; deckView.page = 1; renderDashboard(); });
 
 function deleteDeck(id){
   const decks = getDecks();
@@ -3667,6 +3684,52 @@ async function checkAllFollowups(btn){
     setL('Follow-ups');
   } finally { if (btn) btn.disabled = false; }
 }
+/* Silent follow-up check on load — never prompts; skips quietly if calendar access isn't granted. */
+async function autoCheckFollowups(){
+  if (!GOOGLE_CLIENT_ID || !AUTH) return;
+  let token;
+  if (AUTH.token && Date.now() < AUTH.expires) token = AUTH.token;
+  else { try { const r = await requestToken('none'); AUTH = Object.assign({}, AUTH, { token:r.access_token, expires:Date.now()+((r.expires_in||3300)*1000)-60000 }); saveAuth(); token = AUTH.token; } catch(e){ return; } }
+  const team = getTeam();
+  const FRESH = 1000*60*60*4;   // re-check a deck at most every 4h
+  const targets = currentPageDecks().filter(d => d.contactEmail && team.find(p=>p.id===d.salespersonId && p.email) &&
+    (!d.followup || !d.followup.checkedAt || (Date.now() - new Date(d.followup.checkedAt).getTime()) > FRESH));
+  let changed = false;
+  for (const d of targets){
+    let fu;
+    try { fu = await checkOneFollowup(d, token); }
+    catch(e){ if (e && e.scope) return; fu = { checkedAt:new Date().toISOString(), scheduled:false, noAccess:true }; }  // missing scope → stop silently
+    if (fu && !fu.skipped){ const cur = DB.decks.find(x=>x.id===d.id)||d; upsertDeck(Object.assign({}, cur, { followup: fu, updatedAt:new Date().toISOString() })); changed = true; }
+  }
+  if (changed && state.view === 'dashboard') renderDashboard();
+}
+/* Background auto-grade on load — grades each deck once (when a Fathom call exists). */
+async function autoGradeDecks(){
+  if (!SUPABASE_URL) return;
+  const MISS_TTL = 1000*60*60*24;   // if no call was found, don't retry for 24h
+  const targets = currentPageDecks().filter(d => d.contactEmail && !d.callGrade &&
+    (!d.gradeMiss || (Date.now() - new Date(d.gradeMiss).getTime()) > MISS_TTL));
+  for (const d of targets){
+    try {
+      const r = await fetch(SUPABASE_URL + '/functions/v1/analyze-call', {
+        method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + SUPABASE_ANON_KEY, 'apikey': SUPABASE_ANON_KEY },
+        body: JSON.stringify({ contactEmail:(d.contactEmail||'').trim(), school:d.school, rubric: rubricConfig() })
+      });
+      const data = await r.json().catch(()=>({}));
+      const cur = DB.decks.find(x=>x.id===d.id) || d;
+      if (r.ok && data && data.criteria){
+        upsertDeck(Object.assign({}, cur, { callGrade: Object.assign({}, data, { analyzedAt:new Date().toISOString() }), updatedAt:new Date().toISOString() }));
+        if (state.view === 'dashboard') renderDashboard();
+      } else if (r.status === 404){
+        upsertDeck(Object.assign({}, cur, { gradeMiss: new Date().toISOString() }));   // no call yet — retry after 24h
+      }
+    } catch(e){ /* network/other — leave for next load */ }
+  }
+}
+function runAutoTasks(){
+  // follow-up check (Google) first, then auto-grade (Edge fn) — sequential to avoid clobbering the same deck record
+  Promise.resolve(autoCheckFollowups()).catch(()=>{}).finally(() => { autoGradeDecks().catch(()=>{}); });
+}
 function enterApp(){
   const ls = document.getElementById('login-screen'); if (ls) ls.style.display = 'none';
   const app = document.getElementById('app'); if (app) app.style.display = '';
@@ -3937,6 +4000,7 @@ async function initDashboard(){
     setSyncBadge('local');
   }
   renderDashboard();
+  runAutoTasks();   // auto-grade calls + auto-check follow-ups in the background (throttled, silent)
 }
 // (Manual "refresh" button + sync badge removed — decks save to the shared cloud on
 //  every change and auto-pull on load and whenever you return to the tab.)
