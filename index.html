@@ -1920,6 +1920,11 @@
   .email-attach { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-3); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 9px 12px; margin-top: 4px; }
   .email-attach svg { color: var(--ink-4); flex-shrink: 0; }
   .email-status { font-size: 12.5px; color: var(--accent-dark); margin-top: 8px; min-height: 16px; }
+  .field-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+  .field-head label { margin-bottom: 0; }
+  .personalize-btn { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); border-color: var(--accent-border, #f3c9c6); }
+  .personalize-btn:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .personalize-btn svg { flex-shrink: 0; }
   /* hover tooltips on the row action buttons */
   .deck-row-actions .btn[data-tip] { position: relative; }
   .deck-row-actions .btn[data-tip]:hover::after {
@@ -3060,12 +3065,48 @@ function openEmailModal(deck){
       set('Couldn’t send: ' + (e && e.message ? e.message : e));
     }
   });
+  const personalizeBtn = el('button',{class:'btn sm ghost personalize-btn', type:'button'},
+    el('span',{html:'<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v4M3 5h4M6 17v4M4 19h4M13 3l2.5 6.5L22 12l-6.5 2.5L13 21l-2.5-6.5L4 12l6.5-2.5L13 3Z"/></svg>'}),
+    el('span',{class:'pz-label'}, 'Personalize from call'));
+  const pzLabel = personalizeBtn.querySelector('.pz-label');
+  personalizeBtn.addEventListener('click', async () => {
+    const to = toInput.value.trim();
+    if (!/.+@.+\..+/.test(to)){ toInput.focus(); set('Add the prospect’s email first — we match the Fathom call by it.'); return; }
+    if (!SUPABASE_URL){ set('Cloud isn’t configured, so we can’t reach the personalize service.'); return; }
+    personalizeBtn.disabled = true;
+    pzLabel.textContent = 'Reading the call…';
+    set('Finding your Fathom call and rewriting the draft…');
+    try {
+      const r = await fetch(SUPABASE_URL + '/functions/v1/personalize-email', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + SUPABASE_ANON_KEY, 'apikey': SUPABASE_ANON_KEY },
+        body: JSON.stringify({
+          contactEmail: to,
+          school: deck.school,
+          discovery: { enrollment: deck.enrollment || '', sports: deck.sports || [], lossPct: deck.lossPct, sis: deck.sis || '' },
+          rep: sp ? { name: sp.name, email: sp.email, phone: sp.phone } : null,
+          baseEmail: bodyArea.value
+        })
+      });
+      const data = await r.json().catch(()=>({ error: 'Unexpected response from the service.' }));
+      if (!r.ok) throw new Error(data.error || ('Error ' + r.status));
+      bodyArea.value = data.email;
+      set('Personalized from your call' + (data.meetingDate ? ' on ' + data.meetingDate : '') + '. Review and send.');
+    } catch(e){
+      set('Couldn’t personalize: ' + (e && e.message ? e.message : e));
+    } finally {
+      personalizeBtn.disabled = false;
+      pzLabel.textContent = 'Personalize from call';
+    }
+  });
   const body = el('div',{},
     el('div',{class:'modal-h'},'Email the prospect'),
     el('div',{class:'modal-desc'},'Review and send it from your Gmail. The presentation and proposal attach automatically.'),
     el('div',{class:'field'}, el('label',{},'To'), toInput),
     el('div',{class:'field'}, el('label',{},'Subject'), subjInput),
-    el('div',{class:'field'}, el('label',{},'Message'), bodyArea),
+    el('div',{class:'field'},
+      el('div',{class:'field-head'}, el('label',{},'Message'), personalizeBtn),
+      bodyArea),
     el('div',{class:'email-attach'},
       el('span',{html:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>'}),
       'Attaching the presentation PDF and proposal PDF'),
