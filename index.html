@@ -13,6 +13,8 @@
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!-- Google sign-in (for emailing the deck + proposal from your Gmail) -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<!-- QR generator (scan-to-book code on the Next Steps slide) — client-side, taint-safe data URI -->
+<script defer src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <style>
   :root {
     /* Brand primaries */
@@ -2054,6 +2056,7 @@
   .hs-fallback.show { display: flex; }
   .hs-fallback-inner { text-align: center; padding: 40px; }
   .hs-fallback-cal { color: var(--accent); margin-bottom: 16px; }
+  .hs-qr { width: 148px; height: 148px; display: block; margin: 0 auto 18px; image-rendering: pixelated; border: 1px solid var(--border); border-radius: 8px; }
   .hs-fallback-h { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; color: var(--ink); }
   .hs-fallback-p { font-size: 14px; color: var(--ink-3); margin-top: 8px; }
   .hs-fallback-link { font-size: 14px; font-weight: 600; color: var(--accent); margin-top: 10px; word-break: break-all; }
@@ -5003,10 +5006,22 @@ function buildPricing(school, d) {
 }
 
 /* ----- Slide 19: Final / Let's talk ----- */
+/* Generate a scannable QR as a taint-safe data URI (client-side, no remote image). */
+function qrDataUrl(text){
+  try {
+    if (!text || typeof qrcode === 'undefined') return '';
+    const qr = qrcode(0, 'M');
+    qr.addData(text);
+    qr.make();
+    return qr.createDataURL(6, 2);   // cellSize, margin
+  } catch(e){ return ''; }
+}
+const CALENDAR_SVG = '<svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>';
 function buildNextSteps(school, d) {
   const sp = d.salesperson;
   const hs = sp && sp.hubspot ? String(sp.hubspot).trim() : '';
   const embedSrc = hs ? (hs + (hs.includes('?') ? '&' : '?') + 'embed=true') : '';
+  const qrImg = hs ? qrDataUrl(hs) : '';
   const steps = [
     ['We send over your proposal', 'A proposal built for ' + school + ' — your plan and pricing, ready for sign-off.'],
     ['We mail your materials', 'A starter kit ships to your school: sample QR labels and everything your team needs to see it in hand.'],
@@ -5035,9 +5050,11 @@ function buildNextSteps(school, d) {
             : null,
           el('div', {class:'hs-fallback' + (embedSrc ? '' : ' show')},
             el('div', {class:'hs-fallback-inner'},
-              el('div', {class:'hs-fallback-cal', html:'<svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>'}),
+              qrImg
+                ? el('img', {class:'hs-qr', src: qrImg, alt:'Scan to book a follow-up call'})
+                : el('div', {class:'hs-fallback-cal', html: CALENDAR_SVG}),
               el('div', {class:'hs-fallback-h'}, 'Book your follow-up call'),
-              el('div', {class:'hs-fallback-p'}, sp ? ('Grab a time with ' + sp.name + ':') : 'We’ll send a link to grab a time.'),
+              el('div', {class:'hs-fallback-p'}, qrImg ? 'Scan the code to grab a time' : (sp ? ('Grab a time with ' + sp.name + ':') : 'We’ll send a link to grab a time.')),
               hs ? el('div', {class:'hs-fallback-link'}, hs.replace(/^https?:\/\//,'')) : null
             )
           )
