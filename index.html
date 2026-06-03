@@ -1966,6 +1966,7 @@
   .fu-chip { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 6px; font-size: 11px; font-weight: 700; white-space: nowrap; }
   .fu-chip.fu-set { background: #e7f6ee; color: #1f7a47; }
   .fu-chip.fu-past, .fu-chip.fu-none { background: var(--surface); color: var(--ink-4); font-weight: 600; }
+  .fu-chip.fu-nudge { background: #fdecea; color: #c62b25; }
   .fu-chip svg { flex-shrink: 0; }
   /* rubric editor (Settings) */
   .rub-help { font-size: 13.5px; color: var(--ink-3); margin: 0 0 14px; line-height: 1.5; }
@@ -2216,8 +2217,9 @@
           <option value="oldest">Oldest first</option>
           <option value="az">School A–Z</option>
         </select>
-        <select id="deck-filter" title="Filter by follow-up">
+        <select id="deck-filter" title="Filter">
           <option value="all">All decks</option>
+          <option value="nudge">Needs a nudge</option>
           <option value="none">No follow-up booked</option>
           <option value="booked">Follow-up booked</option>
         </select>
@@ -2505,9 +2507,9 @@ function saveRubric(arr){
 
 /* ---- Automation toggles (Settings → Automation) — control the on-load background tasks ---- */
 const AUTOMATION_KEY = 'gl_automation_v1';
-let AUTOMATION = { autoGrade: true, autoFollowup: true };
-function automationConfig(){ return { type:'automation', autoGrade: !!AUTOMATION.autoGrade, autoFollowup: !!AUTOMATION.autoFollowup }; }
-function applyAutomation(cfg){ if (cfg && typeof cfg === 'object'){ if (typeof cfg.autoGrade !== 'undefined') AUTOMATION.autoGrade = !!cfg.autoGrade; if (typeof cfg.autoFollowup !== 'undefined') AUTOMATION.autoFollowup = !!cfg.autoFollowup; } }
+let AUTOMATION = { autoGrade: true, autoFollowup: true, nudgeDays: 10 };
+function automationConfig(){ return { type:'automation', autoGrade: !!AUTOMATION.autoGrade, autoFollowup: !!AUTOMATION.autoFollowup, nudgeDays: Number(AUTOMATION.nudgeDays) || 10 }; }
+function applyAutomation(cfg){ if (cfg && typeof cfg === 'object'){ if (typeof cfg.autoGrade !== 'undefined') AUTOMATION.autoGrade = !!cfg.autoGrade; if (typeof cfg.autoFollowup !== 'undefined') AUTOMATION.autoFollowup = !!cfg.autoFollowup; if (cfg.nudgeDays != null && cfg.nudgeDays !== '') AUTOMATION.nudgeDays = Number(cfg.nudgeDays) || 10; } }
 function saveAutomation(cfg){
   applyAutomation(cfg);
   saveJSON(AUTOMATION_KEY, automationConfig());
@@ -2691,11 +2693,23 @@ const CAL_MINI = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" st
 function parseDay(iso){ const p = String(iso || '').slice(0,10).split('-'); return new Date(+p[0], (+p[1]||1)-1, +p[2]||1); }   // calendar date, local — no TZ shift
 function dayDiff(aIso, bIso){ return Math.round((parseDay(aIso) - parseDay(bIso)) / 86400000); }
 function fmtDay(iso){ try { return parseDay(iso).toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' }); } catch(e){ return ''; } }
+const BELL_MINI = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>';
+/* Last touchpoint = most recent of: emailed, the call, the follow-up; falls back to created. */
+function lastTouchDate(deck){
+  const dates = [];
+  if (deck.emailedAt) dates.push(deck.emailedAt);
+  if (deck.callGrade && deck.callGrade.meetingDate) dates.push(deck.callGrade.meetingDate);
+  if (deck.followup){ if (deck.followup.firstCallDate) dates.push(deck.followup.firstCallDate); if (deck.followup.startTime) dates.push(deck.followup.startTime); }
+  if (!dates.length) return deck.createdAt || null;
+  return dates.reduce((a,b) => new Date(b).getTime() > new Date(a).getTime() ? b : a);
+}
+function daysQuiet(deck){ const last = lastTouchDate(deck); return last ? dayDiff(new Date().toISOString(), last) : null; }
+function nudgeThreshold(){ return Number(AUTOMATION.nudgeDays) || 10; }
+function hasUpcomingFollowup(deck){ return !!(deck.followup && deck.followup.scheduled && deck.followup.startTime && new Date(deck.followup.startTime).getTime() > Date.now()); }
+function dealNeedsNudge(deck){ if (hasUpcomingFollowup(deck)) return false; const q = daysQuiet(deck); return q != null && q >= nudgeThreshold(); }
 function followupChip(deck){
   const fu = deck.followup;
-  if (!fu) return null;
-  if (fu.scheduled && fu.startTime){
-    const startMs = new Date(fu.startTime).getTime();
+  if (hasUpcomingFollowup(deck)){
     const short = parseDay(fu.startTime).toLocaleDateString(undefined, { month:'short', day:'numeric' });
     let label, title;
     if (fu.firstCallDate){
@@ -2703,15 +2717,20 @@ function followupChip(deck){
       label = short + ' · +' + gap + 'd';
       title = 'Follow-up ' + fmtDay(fu.startTime) + ' — ' + gap + ' days after the first call (' + fmtDay(fu.firstCallDate) + ')';
     } else {
-      const days = Math.ceil((startMs - Date.now()) / 86400000);
+      const days = Math.ceil((new Date(fu.startTime).getTime() - Date.now()) / 86400000);
       label = short + ' · in ' + days + 'd';
-      title = 'Follow-up ' + fmtDay(fu.startTime) + ' (first-call date unknown — showing days from today)';
+      title = 'Follow-up ' + fmtDay(fu.startTime);
     }
-    return el('span',{class:'fu-chip ' + (startMs < Date.now() ? 'fu-past' : 'fu-set'), title: title},
-      el('span',{html: CAL_MINI}), label);
+    return el('span',{class:'fu-chip fu-set', title}, el('span',{html: CAL_MINI}), label);
   }
-  if (fu.noAccess) return el('span',{class:'fu-chip fu-none', title:'Couldn’t read this rep’s calendar — check Google Calendar sharing'}, 'Follow-up: ?');
-  return el('span',{class:'fu-chip fu-none', title:'No upcoming follow-up on the rep’s calendar'}, 'No follow-up');
+  if (dealNeedsNudge(deck)){
+    const q = daysQuiet(deck), lt = lastTouchDate(deck);
+    return el('span',{class:'fu-chip fu-nudge', title:'No upcoming follow-up, and no activity for ' + q + ' days' + (lt ? ' (last touch ' + fmtDay(lt) + ')' : '') + ' — time to check in'},
+      el('span',{html: BELL_MINI}), 'Nudge · ' + q + 'd quiet');
+  }
+  if (fu && fu.noAccess) return el('span',{class:'fu-chip fu-none', title:'Couldn’t read this rep’s calendar — check Google Calendar sharing'}, 'Follow-up: ?');
+  if (fu && !fu.scheduled) return el('span',{class:'fu-chip fu-none', title:'No upcoming follow-up booked'}, 'No follow-up');
+  return null;
 }
 
 function deckRow(deck, team){
@@ -2781,12 +2800,16 @@ function renderDashboard(){
     return d.school.toLowerCase().includes(q) || (sp && sp.name.toLowerCase().includes(q));
   });
   const fStatus = deckView.filter || 'all';
-  if (fStatus !== 'all'){
+  if (fStatus === 'nudge') rows = rows.filter(dealNeedsNudge);
+  else if (fStatus !== 'all'){
     rows = rows.filter(d => {
       const booked = !!(d.followup && d.followup.scheduled);
       return fStatus === 'booked' ? booked : !booked;
     });
   }
+  // live count of deals needing a nudge, shown on the filter option
+  const nudgeOpt = document.querySelector('#deck-filter option[value="nudge"]');
+  if (nudgeOpt){ const n = all.filter(dealNeedsNudge).length; nudgeOpt.textContent = 'Needs a nudge' + (n ? ' (' + n + ')' : ''); }
   rows.sort((a,b) => {
     if (deckView.sort === 'az') return String(a.school).localeCompare(String(b.school));
     const cmp = String(a.createdAt||'').localeCompare(String(b.createdAt||''));
@@ -2800,7 +2823,8 @@ function renderDashboard(){
 
   if (!rows.length){
     list.appendChild(el('div',{class:'deck-none'},
-      fStatus === 'none' ? 'No decks without a follow-up booked. 🎉'
+      fStatus === 'nudge' ? 'No deals need a nudge right now. 🎉'
+      : fStatus === 'none' ? 'No decks without a follow-up booked. 🎉'
       : fStatus === 'booked' ? 'No decks with a follow-up booked yet.'
       : 'No decks match “' + deckView.search.trim() + '”.'));
     return;
@@ -3129,7 +3153,7 @@ function renderTeamSettings(){
   return wrap;
 }
 function renderAutomationSettings(){
-  const draft = { autoGrade: !!AUTOMATION.autoGrade, autoFollowup: !!AUTOMATION.autoFollowup };
+  const draft = { autoGrade: !!AUTOMATION.autoGrade, autoFollowup: !!AUTOMATION.autoFollowup, nudgeDays: Number(AUTOMATION.nudgeDays) || 10 };
   const status = el('span',{class:'settings-saved'}, '');
   function toggleRow(key, title, desc){
     const input = el('input',{type:'checkbox'}); input.checked = draft[key];
@@ -3139,11 +3163,17 @@ function renderAutomationSettings(){
       el('label',{class:'toggle'}, input, el('span',{class:'toggle-track'}, el('span',{class:'toggle-knob'})))
     );
   }
+  const nudgeInput = el('input',{type:'number', min:'1', max:'120', step:'1', value: draft.nudgeDays, class:'rub-weight'});
+  nudgeInput.addEventListener('input', () => { draft.nudgeDays = nudgeInput.value; });
   const save = () => { saveAutomation(draft); status.textContent = 'Saved ✓'; setTimeout(()=>status.textContent='',2500); };
   return el('div',{},
     el('p',{class:'settings-subtitle'}, 'Control what runs automatically when the dashboard loads. Saved for the whole team.'),
     toggleRow('autoGrade', 'Auto-grade calls', 'When the dashboard loads, automatically pull each deck’s Fathom call and grade it against your rubric — once per deck. Turn off to grade only when you click the analyze icon. (Each grade uses Claude.)'),
     toggleRow('autoFollowup', 'Auto-check follow-ups', 'When the dashboard loads, quietly check reps’ calendars for booked follow-ups and update the chips. Turn off to check only via the Follow-ups button.'),
+    el('div',{class:'auto-row'},
+      el('div',{}, el('div',{class:'auto-h'}, 'Nudge after'), el('div',{class:'auto-p'}, 'Flag a deal as “needs a nudge” when there’s no upcoming follow-up and there’s been no activity (call, email, or meeting) for this many days.')),
+      el('label',{class:'rub-weight-wrap'}, nudgeInput, el('span',{},'days'))
+    ),
     el('div',{class:'settings-actions'},
       el('span',{}),
       el('div',{style:'display:flex;align-items:center;gap:16px'}, status, el('button',{class:'btn primary', type:'button', onClick:save},'Save'))
