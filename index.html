@@ -1994,6 +1994,29 @@
   .lead-empty { font-size: 13.5px; color: var(--ink-4); padding: 6px 0; }
   .school-name.lead-link { cursor: pointer; }
   .school-name.lead-link:hover { color: var(--accent); }
+  /* top section nav */
+  .topnav { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; }
+  .topnav-left { display: flex; align-items: center; gap: 20px; min-width: 0; }
+  .topnav-logo { height: 24px; flex-shrink: 0; }
+  .topnav-tabs { display: flex; gap: 2px; overflow-x: auto; }
+  .topnav-tab { position: relative; font: inherit; font-size: 14px; font-weight: 600; color: var(--ink-4); background: none; border: none; padding: 8px 13px; border-radius: var(--radius-sm); cursor: pointer; white-space: nowrap; transition: color .15s var(--easing), background .15s var(--easing); display: inline-flex; align-items: center; gap: 7px; }
+  .topnav-tab:hover { color: var(--ink-2); background: var(--surface); }
+  .topnav-tab.active { color: var(--ink); background: var(--surface); }
+  .topnav-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 17px; height: 17px; padding: 0 5px; border-radius: 9px; background: var(--accent); color: #fff; font-size: 10.5px; font-weight: 800; }
+  .topnav-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  /* nudges & tasks */
+  .nt-sec { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-4); margin: 26px 0 10px; }
+  .nt-list { display: flex; flex-direction: column; gap: 6px; }
+  .nt-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 13px 16px; background: var(--paper); border: 1px solid var(--border); border-radius: var(--radius-md); }
+  .nt-check { display: flex; align-items: flex-start; gap: 11px; cursor: pointer; min-width: 0; }
+  .nt-body { min-width: 0; }
+  .nt-task { font-size: 14px; font-weight: 600; color: var(--ink); }
+  .nt-meta { font-size: 12.5px; color: var(--ink-4); margin-top: 2px; }
+  .nt-acct { color: var(--accent); font-weight: 600; cursor: pointer; }
+  .nt-acct:hover { text-decoration: underline; }
+  .nt-due { font-size: 12.5px; font-weight: 700; color: var(--ink-4); flex-shrink: 0; }
+  .nt-due.overdue { color: #c62b25; }
+  .nt-actions { display: flex; gap: 8px; flex-shrink: 0; }
   .pl-main { max-width: 1180px; margin: 0 auto; padding: 40px 40px 100px; }
   .pl-headrow { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
   .pl-totals { display: flex; gap: 22px; font-size: 13px; color: var(--ink-4); }
@@ -2438,6 +2461,12 @@
       </div>
     </div>
     <div class="lead-main"><div id="lead-body"></div></div>
+  </div>
+
+  <!-- Nudges & Tasks page -->
+  <div class="dash section-layer" id="tasks-page" style="display:none;">
+    <div class="dash-top" id="tasks-nav"></div>
+    <div class="lb-main"><div id="tasks-body"></div></div>
   </div>
 
   <!-- Modals (create deck / manage team) -->
@@ -2955,7 +2984,7 @@ function deckRow(deck, team){
   const contact = [deck.contactFirst, deck.contactLast].filter(Boolean).join(' ');
   return el('div',{class:'deck-cols deck-row'},
     el('div',{class:'deck-cell'},
-      el('div',{class:'deck-school'}, el('span',{class:'school-name lead-link', onClick:()=>openLead(deck, 'dashboard')}, deck.school))),
+      el('div',{class:'deck-school'}, el('span',{class:'school-name lead-link', onClick:()=>openLead(deck, 'leads')}, deck.school))),
     el('div',{class:'deck-cell'},
       contact ? el('div',{class:'deck-contact-name'}, contact) : el('span',{class:'muted'},'—'),
       deck.contactEmail ? el('div',{class:'deck-contact-email'}, deck.contactEmail) : null),
@@ -3765,6 +3794,106 @@ function openLead(deck, returnView){ state.leadReturn = returnView || (state.vie
 function backFromLead(){ document.getElementById('lead-page').style.display='none'; const rv = state.leadReturn || 'dashboard'; state.view = rv; if (rv==='pipeline') renderPipeline(); else renderDashboard(); window.scrollTo(0,0); }
 document.getElementById('lead-back').addEventListener('click', backFromLead);
 
+/* ---------- CRM section navigation ---------- */
+const SECTION_PAGE = { leads:'dashboard', pipeline:'pipeline-page', tasks:'tasks-page', performance:'leaderboard-page', settings:'settings-page' };
+const SECTION_VIEW = { leads:'dashboard', pipeline:'pipeline', tasks:'tasks', performance:'leaderboard', settings:'settings' };
+const NAV_TABS = [ {key:'leads',label:'Leads'}, {key:'pipeline',label:'Pipeline'}, {key:'tasks',label:'Nudges & Tasks'}, {key:'performance',label:'Performance'}, {key:'settings',label:'Settings'} ];
+const ALL_LAYER_IDS = ['dashboard','pipeline-page','leaderboard-page','settings-page','tasks-page','lead-page'];
+function hideAllSections(){ ALL_LAYER_IDS.forEach(id => { const e = document.getElementById(id); if (e){ e.style.display='none'; if (id==='dashboard') e.classList.add('is-hidden'); } }); }
+function buildNav(active){
+  const chip = el('button',{class:'user-chip', type:'button'});
+  if (AUTH){
+    const first = String(AUTH.name||AUTH.email).trim().split(/\s+/)[0];
+    chip.appendChild(AUTH.picture ? el('img',{src:AUTH.picture, referrerpolicy:'no-referrer'}) : el('span',{class:'avatar'}, String(first||'?').slice(0,1).toUpperCase()));
+    chip.appendChild(el('span',{}, first));
+    chip.title = 'Signed in as ' + AUTH.email + ' — click to sign out';
+    chip.onclick = () => { if (confirm('Sign out of GearLocker?')) signOut(); };
+  } else chip.style.display='none';
+  const decks = getDecks();
+  const nudgeN = decks.filter(dealNeedsNudge).length;
+  const taskN = decks.reduce((a,d)=> a + deckTasks(d).filter(t=>!t.done).length, 0);
+  const tasksCount = nudgeN + taskN;
+  return el('div',{class:'topnav'},
+    el('div',{class:'topnav-left'},
+      el('span',{class:'brand-mark topnav-logo', html: LOGO_IMG_DARK}),
+      el('nav',{class:'topnav-tabs'}, ...NAV_TABS.map(t => el('button',{class:'topnav-tab' + (active===t.key?' active':''), type:'button', onClick:()=>showSection(t.key)},
+        t.label, (t.key==='tasks' && tasksCount) ? el('span',{class:'topnav-badge'}, String(tasksCount)) : null)))
+    ),
+    el('div',{class:'topnav-right'},
+      el('button',{class:'btn ghost sm', type:'button', title:'Check booked follow-ups on the rep’s calendar', onClick:(e)=>checkAllFollowups(e.currentTarget)}, el('span',{class:'fu-btn-label'},'Follow-ups')),
+      chip,
+      el('button',{class:'btn primary sm', type:'button', onClick:openCreateModal}, '+ New deck')
+    )
+  );
+}
+function showSection(name){
+  if (!SECTION_PAGE[name]) name = 'leads';
+  state.section = name; state.view = SECTION_VIEW[name];
+  hideAllSections();
+  const page = document.getElementById(SECTION_PAGE[name]);
+  page.style.display = ''; if (SECTION_PAGE[name]==='dashboard') page.classList.remove('is-hidden');
+  if (name==='leads') renderDashboard();
+  else if (name==='pipeline') renderPipeline();
+  else if (name==='tasks') renderTasksSection();
+  else if (name==='performance') renderLeaderboard();
+  else if (name==='settings') renderSettingsPage();
+  const top = page.querySelector('.dash-top');
+  if (top){ top.innerHTML=''; top.appendChild(buildNav(name)); }
+  window.scrollTo(0,0);
+}
+/* route the old entry points through showSection (last function declaration wins) */
+function openPipeline(){ showSection('pipeline'); }
+function openLeaderboard(){ showSection('performance'); }
+function openSettingsPage(tab){ if (tab) settingsTab = tab; showSection('settings'); }
+function backFromPipeline(){ showSection('leads'); }
+function backFromLeaderboard(){ showSection('leads'); }
+function backFromSettings(){ showSection('leads'); }
+function openLead(deck, returnView){ state.leadReturn = returnView || state.section || 'leads'; state.view='lead'; state.leadId=deck.id; hideAllSections(); document.getElementById('lead-page').style.display=''; renderLead(deck); window.scrollTo(0,0); }
+function backFromLead(){ showSection(state.leadReturn || 'leads'); }
+
+/* ---------- Nudges & Tasks section ---------- */
+function renderTasksSection(){
+  const body = document.getElementById('tasks-body'); body.innerHTML = '';
+  const decks = getDecks(), team = getTeam();
+  const repName = id => (team.find(p=>p.id===id)||{}).name || 'Unassigned';
+  const openTasks = [];
+  decks.forEach(d => deckTasks(d).filter(t=>!t.done).forEach(t => openTasks.push({ deck:d, task:t })));
+  openTasks.sort((a,b)=> String(a.task.due||'9999-99').localeCompare(String(b.task.due||'9999-99')));
+  const nudges = decks.filter(dealNeedsNudge).sort((a,b)=> (daysQuiet(b)||0) - (daysQuiet(a)||0));
+  body.appendChild(el('h1',{class:'lb-title'},'Nudges & Tasks'));
+  body.appendChild(el('p',{class:'lb-sub'}, openTasks.length + ' open task' + (openTasks.length===1?'':'s') + '  ·  ' + nudges.length + ' deal' + (nudges.length===1?'':'s') + ' needing a nudge. Work the list and clear it out.'));
+
+  body.appendChild(el('div',{class:'nt-sec'}, 'Open tasks (' + openTasks.length + ')'));
+  const tl = el('div',{class:'nt-list'});
+  if (!openTasks.length) tl.appendChild(el('div',{class:'lead-empty', style:'padding:14px 16px'},'No open tasks. 🎉'));
+  openTasks.forEach(({deck, task}) => {
+    const cb = el('input',{type:'checkbox'}); cb.addEventListener('change', ()=>{ toggleTask(deck, task.id); renderTasksSection(); });
+    const overdue = task.due && parseDay(task.due).getTime() < parseDay(new Date().toISOString()).getTime();
+    tl.appendChild(el('div',{class:'nt-row'},
+      el('label',{class:'nt-check'}, cb, el('div',{class:'nt-body'},
+        el('div',{class:'nt-task'}, task.text),
+        el('div',{class:'nt-meta'}, el('span',{class:'nt-acct', onClick:(e)=>{ e.preventDefault(); openLead(deck,'tasks'); }}, deck.school), '  ·  ' + repName(deck.salespersonId)))),
+      task.due ? el('span',{class:'nt-due' + (overdue?' overdue':'')}, fmtDay(task.due)) : el('span',{class:'muted', style:'font-size:12px'},'no date')
+    ));
+  });
+  body.appendChild(tl);
+
+  body.appendChild(el('div',{class:'nt-sec'}, 'AI nudges (' + nudges.length + ')'));
+  const nl = el('div',{class:'nt-list'});
+  if (!nudges.length) nl.appendChild(el('div',{class:'lead-empty', style:'padding:14px 16px'},'No deals need a nudge right now. 🎉'));
+  nudges.forEach(deck => {
+    nl.appendChild(el('div',{class:'nt-row'},
+      el('div',{class:'nt-body'},
+        el('div',{class:'nt-task'}, el('span',{class:'nt-acct', onClick:()=>openLead(deck,'tasks')}, deck.school)),
+        el('div',{class:'nt-meta'}, daysQuiet(deck) + ' days quiet  ·  ' + repName(deck.salespersonId))),
+      el('div',{class:'nt-actions'},
+        el('button',{class:'btn sm', onClick:()=>openEmailModal(deck)},'Draft email'),
+        el('button',{class:'btn ghost sm', onClick:()=>openLead(deck,'tasks')},'Open'))
+    ));
+  });
+  body.appendChild(nl);
+}
+
 /* ---------- Daily digest: "what needs attention today" ---------- */
 const CHART_MINI = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>';
 function buildDigest(scopeRepId){
@@ -3928,7 +4057,7 @@ function openDeck(id){
   buildName.textContent = deck.school;
   buildOverlay.classList.add('is-showing');
   setTimeout(() => {
-    dashboard.classList.add('is-hidden');
+    hideAllSections();   // hide CRM sections + nav so the slide stage shows
     renderDeck();
     setTimeout(() => buildOverlay.classList.remove('is-showing'), 200);
   }, 600);
@@ -4723,15 +4852,13 @@ function saveCurrentDeck(){
 /* --- Back to the dashboard --- */
 function backToDashboard(){
   saveCurrentDeck();
-  state.view = 'dashboard';
   state.deckId = null;
   document.getElementById('topbar').classList.remove('dark');
   document.getElementById('bottombar').classList.remove('dark');
   document.getElementById('lead-tag').style.display = 'none';
   document.getElementById('reset-btn').style.display = 'none';
   document.getElementById('slide-count').textContent = '';
-  renderDashboard();
-  dashboard.classList.remove('is-hidden');
+  showSection(state.section || 'leads');   // back to whichever CRM section we came from
 }
 
 /* --- Sync status badge + startup hydrate --- */
@@ -4757,7 +4884,7 @@ async function initDashboard(){
   } else {
     setSyncBadge('local');
   }
-  renderDashboard();
+  showSection('leads');   // render the Leads section + the top nav
   runAutoTasks();   // auto-grade calls + auto-check follow-ups in the background (throttled, silent)
 }
 // (Manual "refresh" button + sync badge removed — decks save to the shared cloud on
