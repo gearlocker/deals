@@ -2369,8 +2369,31 @@
   .kpi { background: var(--paper); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px 18px; }
   .kpi-val { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; color: var(--ink); font-variant-numeric: tabular-nums; line-height: 1.1; }
   .kpi-lbl { font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-4); margin-top: 6px; display: inline-flex; align-items: center; gap: 5px; }
-  .info-tip { display: inline-flex; align-items: center; color: var(--ink-4); cursor: help; opacity: .65; }
+  .info-tip { position: relative; display: inline-flex; align-items: center; color: var(--ink-4); cursor: help; opacity: .65; }
   .info-tip:hover { opacity: 1; color: var(--accent); }
+  .info-tip[data-tip]:hover::after {
+    content: attr(data-tip);
+    position: absolute; bottom: calc(100% + 9px); left: 50%; transform: translateX(-50%);
+    width: max-content; max-width: 250px; white-space: normal; text-align: left;
+    background: var(--ink); color: #fff; font-size: 12px; font-weight: 500; line-height: 1.45;
+    padding: 9px 11px; border-radius: 8px; box-shadow: 0 8px 26px rgba(0,0,0,.22); pointer-events: none; z-index: 80;
+  }
+  .info-tip[data-tip]:hover::before {
+    content: ''; position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%);
+    border: 5px solid transparent; border-top-color: var(--ink); pointer-events: none; z-index: 80;
+  }
+  /* chart drill-down table */
+  .metric-data-toggle { margin-left: auto; font: inherit; font-size: 12px; font-weight: 600; color: var(--ink-4); background: none; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px 10px; cursor: pointer; white-space: nowrap; }
+  .metric-data-toggle:hover { color: var(--ink); border-color: var(--ink-3); }
+  .metric-table-wrap { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 14px; }
+  .metric-table-scroll { max-height: 340px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  .metric-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .metric-table th { position: sticky; top: 0; background: var(--wash); text-align: left; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-4); padding: 8px 12px; border-bottom: 1px solid var(--border); z-index: 1; }
+  .metric-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); color: var(--ink-2); }
+  .metric-table tbody tr:last-child td { border-bottom: none; }
+  .metric-table th.num, .metric-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .metric-table tbody tr:hover { background: var(--wash); }
+  .metric-table tfoot td { position: sticky; bottom: 0; font-weight: 700; color: var(--ink); background: var(--paper); border-top: 2px solid var(--border); }
   .mx-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
   .mx-range { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
   .mx-range-btn { font: inherit; font-size: 13px; font-weight: 600; color: var(--ink-3); background: var(--paper); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 12px; cursor: pointer; }
@@ -5962,17 +5985,44 @@ function stackedChart(months, series, fmt){
   ))));
 }
 function chartLegend(series){ const a=series.filter(s=>s.data.some(v=>v)); return a.length ? el('div',{class:'chart-legend'}, ...a.map(s=>el('span',{class:'chart-leg'}, el('span',{class:'chart-dot', style:'background:'+s.color}), s.label))) : null; }
-function chartCard(title, months, series, fmt, tip){
+function chartCard(title, months, series, fmt, tip, detail){
   const has=series.some(s=>s.data.some(v=>v));
-  return el('div',{class:'metric-card'},
-    el('div',{class:'metric-h'}, title, tip?infoTip(tip):null),
+  const head = el('div',{class:'metric-h'}, el('span',{}, title), tip?infoTip(tip):null);
+  const card = el('div',{class:'metric-card'}, head,
     has ? stackedChart(months, series, fmt) : el('div',{class:'lead-empty', style:'padding:30px 4px'},'No data in this window yet.'),
     has ? chartLegend(series) : null
   );
+  if (detail && detail.cols && detail.decks){   // drill-down: show every record behind the chart so the numbers can be audited
+    let open = false;
+    const wrap = el('div',{class:'metric-table-wrap', style:'display:none'});
+    const toggle = el('button',{class:'metric-data-toggle', type:'button', onClick:()=>{
+      open = !open; wrap.style.display = open ? '' : 'none';
+      toggle.textContent = (open ? 'Hide data ▴' : 'View data ▾') + ' (' + detail.decks.length + ')';
+      if (open && !wrap._built){ wrap._built = true; wrap.appendChild(metricTable(detail.cols, detail.decks)); }
+    }}, 'View data ▾ (' + detail.decks.length + ')');
+    head.appendChild(toggle);
+    card.appendChild(wrap);
+  }
+  return card;
 }
-// small "ⓘ" affordance with a hover explanation (native title tooltip)
+// A scrollable table of the individual records behind a chart (cols: {label, get, num?, sortVal?, total?, totalFmt?}).
+function metricTable(cols, decks){
+  const sortCol = cols.find(c => c.sortVal);
+  const list = decks.slice();
+  if (sortCol) list.sort((a,b)=> String(sortCol.sortVal(b)||'').localeCompare(String(sortCol.sortVal(a)||'')));   // newest first
+  const table = el('table',{class:'metric-table'},
+    el('thead',{}, el('tr',{}, ...cols.map(c => el('th',{class: c.num?'num':''}, c.label)))),
+    el('tbody',{}, ...(list.length ? list.map(d => el('tr',{}, ...cols.map(c => el('td',{class:c.num?'num':''}, String(c.get(d)))))) : [el('tr',{}, el('td',{colspan:String(cols.length), style:'color:var(--ink-4)'}, 'No records in this window.'))])));
+  if (list.length && cols.some(c => c.total)){
+    table.appendChild(el('tfoot',{}, el('tr',{}, ...cols.map((c,i) => {
+      if (c.total){ const sum = list.reduce((a,d)=>a+(Number(c.total(d))||0),0); return el('td',{class:c.num?'num':''}, c.totalFmt?c.totalFmt(sum):String(sum)); }
+      return el('td',{}, i===0 ? ('Total · ' + list.length) : '');
+    }))));
+  }
+  return el('div',{class:'metric-table-scroll'}, table);
+}
 const INFO_SVG = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="11" x2="12" y2="16"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>';
-function infoTip(text){ return el('span',{class:'info-tip', title:text, html:INFO_SVG}); }
+function infoTip(text){ return el('span',{class:'info-tip', 'data-tip':text, html:INFO_SVG}); }   // custom CSS tooltip (reliable, wraps)
 function kpi(label, value, tip){ return el('div',{class:'kpi'}, el('div',{class:'kpi-val'}, value), el('div',{class:'kpi-lbl'}, label, tip?infoTip(tip):null)); }
 function lostDate(d){ if (d.stageDates && d.stageDates.closedlost) return d.stageDates.closedlost; return dealStage(d)==='closedlost' ? (d.updatedAt||d.createdAt) : null; }
 function monthsBetween(fromStr, toStr){
@@ -6036,11 +6086,16 @@ function renderMetrics(){
     kpi('Collected', paid.length + (paidAmt?(' · '+fmtUSD(paidAmt)):''), 'Deals marked Paid in this window and the total collected.'),
     kpi('Open pipeline', fmtUSD(openAmt), 'Total annual value of all currently-open deals. A live snapshot — not limited to the date window.')
   ));
+  const C = { school:{label:'School', get:d=>d.school}, rep:{label:'Rep', get:d=>repName(d.salespersonId)} };
   body.appendChild(el('div',{class:'metric-grid'},
-    chartCard('Leads by month — by source', months, bucketSeries(decks, d=>d.createdAt, d=>sourceLabel(d)||'Other', months), null, 'Counts each lead in the month it was created, split by lead source (and sub-source).'),
-    chartCard('Demos by month — by rep', months, bucketSeries(demos, demoDate, d=>repName(d.salespersonId), months), null, 'Counts each demo in the month it happened, split by rep.'),
-    chartCard('Verbal commits by month — by rep', months, bucketSeries(decks, committedDate, d=>repName(d.salespersonId), months), null, 'Counts each verbal commit in the month it was reached, split by rep.'),
-    chartCard('Sales by month — by rep ($)', months, bucketSeries(won, closedWonDate, d=>repName(d.salespersonId), months, d=>dealAmount(d)), fmtUSD, 'Sums won-deal annual value in the month each deal closed, split by rep.')
+    chartCard('Leads by month — by source', months, bucketSeries(decks, d=>d.createdAt, d=>sourceLabel(d)||'Other', months), null, 'Counts each lead in the month it was created, split by lead source (and sub-source).',
+      { decks: leads.slice(), cols:[ C.school, {label:'Source', get:d=>sourceLabel(d)||'—'}, {label:'Created', get:d=>fmtDay(d.createdAt), sortVal:d=>d.createdAt} ] }),
+    chartCard('Demos by month — by rep', months, bucketSeries(demos, demoDate, d=>repName(d.salespersonId), months), null, 'Counts each demo in the month it happened, split by rep.',
+      { decks: demos.slice(), cols:[ C.school, C.rep, {label:'Demo date', get:d=>fmtDay(demoDate(d)), sortVal:d=>demoDate(d)} ] }),
+    chartCard('Verbal commits by month — by rep', months, bucketSeries(decks, committedDate, d=>repName(d.salespersonId), months), null, 'Counts each verbal commit in the month it was reached, split by rep.',
+      { decks: commits.slice(), cols:[ C.school, C.rep, {label:'Commit date', get:d=>fmtDay(committedDate(d)), sortVal:d=>committedDate(d)} ] }),
+    chartCard('Sales by month — by rep ($)', months, bucketSeries(won, closedWonDate, d=>repName(d.salespersonId), months, d=>dealAmount(d)), fmtUSD, 'Sums won-deal annual value in the month each deal closed, split by rep.',
+      { decks: won.slice(), cols:[ C.school, C.rep, {label:'Close date', get:d=>fmtDay(closedWonDate(d)), sortVal:d=>closedWonDate(d)}, {label:'Amount', num:true, get:d=>fmtUSD(dealAmount(d)), total:d=>dealAmount(d), totalFmt:fmtUSD} ] })
   ));
 }
 function setDeckStage(deckId, newStage){
