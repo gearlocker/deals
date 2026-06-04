@@ -2081,6 +2081,36 @@
   .topnav-setup { display: inline-flex; align-items: center; gap: 7px; background: #fff5ec; border: 1px solid #f3c89b; color: #b5651a; border-radius: 999px; cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 700; padding: 6px 12px; }
   .topnav-setup:hover { background: #ffe9d6; }
   .topnav-setup-dot { width: 7px; height: 7px; border-radius: 50%; background: #e8852a; flex-shrink: 0; }
+  /* proposal / quote builder */
+  .qt-tier { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-bottom: 14px; margin-bottom: 16px; border-bottom: 1px solid var(--border); font-size: 13.5px; color: var(--ink-3); }
+  .qt-tier-name { font-weight: 700; color: var(--ink); }
+  .qt-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 20px; }
+  .qt-field { display: flex; flex-direction: column; gap: 6px; }
+  .qt-flabel { font-size: 12.5px; font-weight: 600; color: var(--ink-2); }
+  .qt-fhint { font-size: 11.5px; color: var(--ink-4); }
+  .qt-inwrap { display: inline-flex; align-items: center; gap: 4px; }
+  .qt-$ { color: var(--ink-3); font-size: 14px; }
+  .qt-yr { color: var(--ink-4); font-size: 12px; }
+  .qt-input { width: 110px; box-sizing: border-box; font: inherit; font-size: 14px; padding: 7px 9px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  .qt-input:focus { outline: none; border-color: var(--accent); }
+  .qt-check { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--ink-2); cursor: pointer; padding-top: 5px; }
+  .qt-check input { width: 15px; height: 15px; }
+  .qt-discrow { display: flex; gap: 8px; }
+  .qt-sel { font: inherit; font-size: 13.5px; padding: 7px 9px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff; }
+  .qt-disc { width: 80px; }
+  .qt-input:disabled { background: var(--wash, #f4f3ef); color: var(--ink-4); }
+  .qt-summary { display: flex; flex-direction: column; gap: 2px; }
+  .qt-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; font-size: 13.5px; color: var(--ink-2); border-top: 1px solid var(--border); }
+  .qt-line:first-child { border-top: none; }
+  .qt-lk { color: var(--ink-3); }
+  .qt-lv { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--ink); }
+  .qt-disc-line .qt-lv { color: #1f9d55; }
+  .qt-strong .qt-lk, .qt-strong .qt-lv { font-weight: 700; color: var(--ink); }
+  .qt-total { border-top: 2px solid var(--ink); margin-top: 4px; padding-top: 12px; }
+  .qt-total .qt-lk { font-weight: 700; color: var(--ink); font-size: 14px; }
+  .qt-total .qt-lv { font-size: 18px; font-weight: 800; }
+  .qt-foot { display: flex; align-items: center; gap: 10px; margin-top: 18px; }
+  @media (max-width: 720px) { .qt-fields { grid-template-columns: 1fr; } }
   .lead-docs { display: flex; flex-direction: column; gap: 10px; }
   .doc-row { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius-md); background: #fff; }
   .doc-ic { width: 42px; height: 42px; border-radius: 10px; background: var(--wash, #f4f3ef); color: var(--accent); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -2797,6 +2827,25 @@ function deckReadiness(deck){
   if (!(deck && deck.enrollment && Number(deck.enrollment) > 0)) missing.push('enrollment');
   if (!(deck && Array.isArray(deck.sports) && deck.sports.length)) missing.push('programs');
   return { ready: missing.length === 0, missing };
+}
+// Effective quote for a deck: tier-based defaults + any per-deal overrides/discount stored on deck.quote.
+function quoteFor(deck){
+  const tier = pickTier(deck && deck.enrollment) || SCHOOL_TIERS[2];
+  const q = (deck && deck.quote) || {};
+  const num = (v, def) => (v != null && v !== '') ? (Number(v) || 0) : def;
+  const annual = num(q.annual, tier.annual);
+  const onboarding = num(q.onboarding, tier.onboarding);
+  const sis = (q.sis != null) ? !!q.sis : isRealSis(deck && deck.sis);
+  const sisAnnual = sis ? SIS_ADDON_ANNUAL : 0;
+  const grossAnnual = annual + sisAnnual;
+  let discount = 0, discountLabel = '';
+  if (q.discountType === 'pct' && Number(q.discountValue) > 0){ discount = Math.round(grossAnnual * Number(q.discountValue) / 100); discountLabel = Number(q.discountValue) + '% discount'; }
+  else if (q.discountType === 'amt' && Number(q.discountValue) > 0){ discount = Number(q.discountValue); discountLabel = 'Discount'; }
+  discount = Math.max(0, Math.min(discount, grossAnnual));
+  const netAnnual = grossAnnual - discount;
+  const year1 = netAnnual + onboarding;
+  const customized = (q.annual != null && q.annual !== '') || (q.onboarding != null && q.onboarding !== '') || discount > 0 || (q.sis != null);
+  return { tier, baseAnnual: tier.annual, baseOnboarding: tier.onboarding, annual, onboarding, sis, sisAnnual, grossAnnual, discount, discountLabel, netAnnual, year1, customized, q };
 }
 
 /* ---- Editable pricing (Settings panel) — flows into the deck + proposal ---- */
@@ -4228,7 +4277,7 @@ function renderLead(deck){
   // sub-tabs
   const openN = deckTasks(deck).filter(t=>!t.done).length;
   const tabNav = el('div',{class:'lead-tabs'});
-  [['overview','Overview'],['timeline','Timeline'],['tasks','Tasks'],['documents','Documents']].forEach(([k,l]) =>
+  [['overview','Overview'],['timeline','Timeline'],['tasks','Tasks'],['proposal','Proposal'],['documents','Documents']].forEach(([k,l]) =>
     tabNav.appendChild(el('button',{class:'lead-tab'+(leadTab===k?' active':''), type:'button', onClick:()=>{ state.leadTab=k; renderLead(deck); }},
       l, (k==='tasks'&&openN)?el('span',{class:'lead-tab-badge'},String(openN)):null)));
   body.appendChild(tabNav);
@@ -4240,6 +4289,8 @@ function renderLead(deck){
     fillTimeline(tl, deck, { expandable:true });
   } else if (leadTab==='documents'){
     renderLeadDocuments(deck, content);
+  } else if (leadTab==='proposal'){
+    renderLeadProposal(deck, content);
   } else if (leadTab==='tasks'){
     content.appendChild(renderLeadTasks(deck));
   } else {
@@ -4426,6 +4477,62 @@ function leadComposer(deck){
     setTimeout(()=>ti.focus(), 0);
   }
   return wrap;
+}
+function qtField(label, control, hint){
+  return el('div',{class:'qt-field'}, el('div',{class:'qt-flabel'}, label), control, hint ? el('div',{class:'qt-fhint'}, hint) : null);
+}
+function qtLine(label, value, cls){
+  return el('div',{class:'qt-line'+(cls?(' '+cls):'')}, el('span',{class:'qt-lk'}, label), el('span',{class:'qt-lv'}, value));
+}
+function renderLeadProposal(deck, content){
+  const card = el('div',{class:'lead-card'}, el('div',{class:'lead-card-h'},'Proposal pricing'));
+  if (!(deck.enrollment && Number(deck.enrollment) > 0)){
+    card.appendChild(el('div',{class:'lead-empty', style:'padding:8px 0 4px'}, 'Add the school’s enrollment in the deck to calculate pricing.'));
+    card.appendChild(el('button',{class:'btn sm primary', style:'margin-top:12px', type:'button', onClick:()=>openDeck(deck.id)}, 'Open the deck →'));
+    content.appendChild(card);
+    return;
+  }
+  const tier = pickTier(deck.enrollment);
+  const q0 = deck.quote || {};
+  const annualInput = el('input',{type:'number', min:'0', step:'50', class:'qt-input', value: (q0.annual!=null?q0.annual:''), placeholder:String(tier.annual)});
+  const onbInput = el('input',{type:'number', min:'0', step:'50', class:'qt-input', value:(q0.onboarding!=null?q0.onboarding:''), placeholder:String(tier.onboarding)});
+  const sisCb = el('input',{type:'checkbox'}); sisCb.checked = (q0.sis!=null)?!!q0.sis:isRealSis(deck.sis);
+  const discType = el('select',{class:'qt-sel'}, el('option',{value:'none'},'No discount'), el('option',{value:'pct'},'% off'), el('option',{value:'amt'},'$ off')); discType.value = q0.discountType||'none';
+  const discVal = el('input',{type:'number', min:'0', step:'1', class:'qt-input qt-disc', value:(q0.discountValue!=null?q0.discountValue:''), placeholder:'0'});
+  const summary = el('div',{class:'qt-summary'});
+  const draftQuote = () => ({ annual: annualInput.value, onboarding: onbInput.value, sis: sisCb.checked, discountType: discType.value, discountValue: discVal.value });
+  const refresh = () => {
+    const q = quoteFor(Object.assign({}, deck, { quote: draftQuote() }));
+    discVal.disabled = (discType.value === 'none');
+    summary.innerHTML='';
+    summary.appendChild(qtLine('Annual platform license', fmtMoney(q.annual) + ' / yr'));
+    if (q.sis) summary.appendChild(qtLine('SIS integration add-on', '+ ' + fmtMoney(q.sisAnnual) + ' / yr'));
+    if (q.discount > 0) summary.appendChild(qtLine(q.discountLabel, '− ' + fmtMoney(q.discount), 'qt-disc-line'));
+    summary.appendChild(qtLine('Net annual', fmtMoney(q.netAnnual) + ' / yr', 'qt-strong'));
+    summary.appendChild(qtLine('One-time onboarding', fmtMoney(q.onboarding)));
+    summary.appendChild(qtLine('First-year total', fmtMoney(q.year1), 'qt-total'));
+  };
+  [annualInput, onbInput, discVal].forEach(i => i.addEventListener('input', refresh));
+  [sisCb, discType].forEach(i => i.addEventListener('change', refresh));
+  card.appendChild(el('div',{class:'qt-tier'}, el('span',{}, 'Enrollment ' + fmtNum(deck.enrollment) + ' students'), el('span',{class:'qt-tier-name'}, tier.name + ' plan · ' + tier.band)));
+  card.appendChild(el('div',{class:'qt-fields'},
+    qtField('Annual platform license', el('div',{class:'qt-inwrap'}, el('span',{class:'qt-$'},'$'), annualInput, el('span',{class:'qt-yr'},'/yr')), 'Standard ' + fmtMoney(tier.annual)),
+    qtField('One-time onboarding', el('div',{class:'qt-inwrap'}, el('span',{class:'qt-$'},'$'), onbInput), 'Standard ' + fmtMoney(tier.onboarding)),
+    qtField('SIS integration', el('label',{class:'qt-check'}, sisCb, el('span',{}, 'Include (+' + fmtMoney(SIS_ADDON_ANNUAL) + ' / yr)')), ''),
+    qtField('Discount', el('div',{class:'qt-discrow'}, discType, discVal), '')
+  ));
+  card.appendChild(el('div',{class:'lead-card-h', style:'margin-top:20px'},'Quote summary'));
+  card.appendChild(summary);
+  refresh();
+  const status = el('span',{class:'lead-tl-sub'}, deck.quote ? 'Custom quote saved' : '');
+  const save = () => { saveDeckPatch(deck, { quote: { annual: annualInput.value.trim(), onboarding: onbInput.value.trim(), sis: sisCb.checked, discountType: discType.value, discountValue: discVal.value.trim() } }); status.textContent = 'Saved ✓'; };
+  const reset = () => { saveDeckPatch(deck, { quote: null }); state.leadTab='proposal'; renderLead(DB.decks.find(x=>x.id===deck.id) || deck); };
+  card.appendChild(el('div',{class:'qt-foot'},
+    el('button',{class:'btn sm primary', type:'button', onClick:save}, 'Save quote'),
+    el('button',{class:'btn ghost sm', type:'button', onClick:reset}, 'Reset to standard'),
+    status));
+  card.appendChild(el('div',{class:'lead-tl-sub', style:'margin-top:12px'}, 'These numbers flow straight into the generated proposal PDF.'));
+  content.appendChild(card);
 }
 function fillTimeline(container, deck, opts){
   opts = opts || {};
@@ -4826,9 +4933,7 @@ function proposalData(deck){
   const sp = getTeam().find(p => p.id === deck.salespersonId) || null;
   const enrollment = deck.enrollment ? Number(deck.enrollment) : null;
   const sports = Array.isArray(deck.sports) ? deck.sports : [];
-  const tier = pickTier(enrollment) || SCHOOL_TIERS[2];
-  const year1 = tier.annual + tier.onboarding;
-  const realSis = isRealSis(deck.sis);
+  const quote = quoteFor(deck);
   let roi = null;
   if (enrollment && sports.length){
     const est = estimateGear(enrollment, sports);
@@ -4837,7 +4942,7 @@ function proposalData(deck){
             lossValue: Math.round(est.totalValue * lossPct / 100),
             recovered: Math.round(est.totalValue * Math.max(lossPct - GL_LOSS_FLOOR, 0) / 100) };
   }
-  return { sp, enrollment, sports, tier, year1, realSis, roi };
+  return { sp, enrollment, sports, tier: quote.tier, year1: quote.year1, realSis: quote.sis, roi, quote };
 }
 function propPage(){
   const kids = Array.prototype.slice.call(arguments);
@@ -4983,14 +5088,16 @@ function buildProposalPages(deck){
       el('table',{class:'prop-table prop-pricing'},
         el('thead',{}, el('tr',{}, el('th',{},'Description'), el('th',{},'Qty'), el('th',{},'Rate'), el('th',{},'Amount'))),
         el('tbody',{},
-          el('tr',{}, el('td',{class:'feat-name', style:'width:auto'},'One-time onboarding & setup'), el('td',{},'1'), el('td',{}, fmtMoney(d.tier.onboarding)), el('td',{}, fmtMoney(d.tier.onboarding))),
-          el('tr',{}, el('td',{class:'feat-name', style:'width:auto'}, d.tier.name + ' annual subscription'), el('td',{},'1 yr'), el('td',{}, fmtMoney(d.tier.annual) + ' / yr'), el('td',{}, fmtMoney(d.tier.annual))),
-          el('tr',{class:'sub'}, el('td',{colspan:'3', style:'text-align:right'},'One-time subtotal'), el('td',{}, fmtMoney(d.tier.onboarding))),
-          el('tr',{class:'sub'}, el('td',{colspan:'3', style:'text-align:right'},'Annual subtotal'), el('td',{}, fmtMoney(d.tier.annual))),
+          el('tr',{}, el('td',{class:'feat-name', style:'width:auto'},'One-time onboarding & setup'), el('td',{},'1'), el('td',{}, fmtMoney(d.quote.onboarding)), el('td',{}, fmtMoney(d.quote.onboarding))),
+          el('tr',{}, el('td',{class:'feat-name', style:'width:auto'}, d.tier.name + ' annual subscription'), el('td',{},'1 yr'), el('td',{}, fmtMoney(d.quote.annual) + ' / yr'), el('td',{}, fmtMoney(d.quote.annual))),
+          d.quote.sis ? el('tr',{}, el('td',{class:'feat-name', style:'width:auto'},'SIS integration add-on'), el('td',{},'1 yr'), el('td',{}, fmtMoney(d.quote.sisAnnual) + ' / yr'), el('td',{}, fmtMoney(d.quote.sisAnnual))) : null,
+          d.quote.discount > 0 ? el('tr',{}, el('td',{class:'feat-name', style:'width:auto'}, d.quote.discountLabel || 'Discount'), el('td',{},''), el('td',{},''), el('td',{}, '− ' + fmtMoney(d.quote.discount))) : null,
+          el('tr',{class:'sub'}, el('td',{colspan:'3', style:'text-align:right'},'One-time subtotal'), el('td',{}, fmtMoney(d.quote.onboarding))),
+          el('tr',{class:'sub'}, el('td',{colspan:'3', style:'text-align:right'},'Annual subtotal'), el('td',{}, fmtMoney(d.quote.netAnnual))),
           el('tr',{class:'tot'}, el('td',{colspan:'3', style:'text-align:right'},'First-year total'), el('td',{}, fmtMoney(d.year1)))
         )
       ),
-      d.realSis ? el('div',{class:'prop-addon'}, el('b',{},'Optional add-on: '), 'SIS integration (' + deck.sis + ') — +$500 / yr for automatic roster sync.') : null,
+      (d.realSis && !d.quote.sis) ? el('div',{class:'prop-addon'}, el('b',{},'Optional add-on: '), 'SIS integration (' + deck.sis + ') — +$500 / yr for automatic roster sync.') : null,
       el('div',{class:'prop-guarantee'}, el('b',{},'Our guarantee: '), 'if the gear GearLocker helps you recover in your first year is worth less than what you paid us, we refund the difference. Most programs come out ahead in the first season.'),
       el('div',{class:'prop-note'}, 'The setup fee is one-time. From year two on, you’re billed only the annual subscription at renewal.')
     )
