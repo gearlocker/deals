@@ -2056,6 +2056,8 @@
   .tl-muted .tl-node { color: var(--ink-4); }
   .nudge-warn { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; background: #fff5ec; border: 1px solid #f3c89b; color: #8a4d12; border-radius: var(--radius-md); padding: 13px 16px; margin: 0 0 22px; font-size: 13px; line-height: 1.45; }
   .nudge-warn button { flex-shrink: 0; }
+  .reply-ic { color: var(--accent); }
+  .reply-subj { color: var(--ink-3); font-weight: 500; }
   .lead-actionbar { display: flex; gap: 8px; margin-top: 18px; }
   .lead-action-btn { display: inline-flex; align-items: center; gap: 7px; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--ink-2); padding: 8px 14px; }
   .lead-action-btn:hover { border-color: var(--ink-3); color: var(--ink); }
@@ -4389,6 +4391,34 @@ async function generateLeadAI(deck){
   if (!r.ok) throw new Error(data.error || ('Error ' + r.status));
   return data;
 }
+/* ---------- AI reply queue: prospect emails awaiting a response ---------- */
+// The contact's latest synced email is inbound (they wrote last), within 30d, not yet handled.
+function deckLatestInbound(deck){
+  const ems = cachedEmailsFor(deck);   // sorted newest-first
+  if (!ems.length) return null;
+  const latest = ems[0];
+  if (latest.sent) return null;                       // we replied last → nothing owed
+  if (deck.replyDoneId && deck.replyDoneId === latest.id) return null;   // dismissed/handled this one
+  if (Date.now() - new Date(latest.date).getTime() > 30*86400000) return null;
+  return latest;
+}
+function repliesToSend(){
+  if (!(AUTH && (AUTH.gmail===true || GACTIVITY.syncedAt))) return [];
+  return getDecks().filter(isOpenDeal).map(d => ({ deck:d, email: deckLatestInbound(d) })).filter(x => x.email)
+    .sort((a,b) => new Date(b.email.date) - new Date(a.email.date));
+}
+async function generateReply(deck, inbound){
+  let body = inbound && inbound.body ? inbound.body : '';
+  if (!body && inbound && inbound.id) body = await fetchEmailBody(inbound.id).catch(()=>'');
+  const payload = Object.assign(buildLeadAIPayload(deck), { inboundSubject: inbound.subject||'', inboundBody: (body || inbound.snippet || ''), inboundDate: inbound.date||'' });
+  const r = await fetch(SUPABASE_URL + '/functions/v1/draft-reply', {
+    method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + SUPABASE_ANON_KEY, 'apikey': SUPABASE_ANON_KEY },
+    body: JSON.stringify(payload)
+  });
+  const data = await r.json().catch(()=>({error:'Unexpected response.'}));
+  if (!r.ok) throw new Error(data.error || ('Error ' + r.status));
+  return data;
+}
 function aiLoading(msg){ return el('div',{class:'lead-ai-loading'}, el('span',{class:'lead-ai-spin'}), el('span',{}, msg||'Reading the account…')); }
 const AI_BUSY = {};   // in-flight guard, keyed by deckId|sig
 function renderLeadAICached(cur, c, ovBody, nxBody){
@@ -4610,7 +4640,7 @@ function buildNav(active){
   const decks = getDecks();
   const nudgeN = decks.filter(dealNeedsNudge).length;
   const taskN = decks.reduce((a,d)=> a + deckTasks(d).filter(t=>!t.done).length, 0);
-  const tasksCount = nudgeN + taskN;
+  const tasksCount = nudgeN + taskN + repliesToSend().length;
   return el('div',{class:'topnav'},
     el('div',{class:'topnav-left'},
       el('span',{class:'brand-mark topnav-logo', html: LOGO_IMG_DARK}),
@@ -4665,7 +4695,26 @@ function renderTasksSection(){
       el('span',{}, 'Nudges may be inaccurate — without Gmail connected, your email replies and meetings don’t count as contact, so deals can look quieter than they are.'),
       el('button',{class:'btn sm primary', type:'button', onClick:()=>openSettingsPage('google')}, 'Connect Gmail')));
   }
-  body.appendChild(el('p',{class:'lb-sub'}, openTasks.length + ' open task' + (openTasks.length===1?'':'s') + '  ·  ' + nudges.length + ' deal' + (nudges.length===1?'':'s') + ' needing a nudge. Work the list and clear it out.'));
+  const replies = repliesToSend();
+  body.appendChild(el('p',{class:'lb-sub'}, (replies.length ? (replies.length + ' repl' + (replies.length===1?'y':'ies') + ' to send  ·  ') : '') + openTasks.length + ' open task' + (openTasks.length===1?'':'s') + '  ·  ' + nudges.length + ' deal' + (nudges.length===1?'':'s') + ' needing a nudge. Work the list and clear it out.'));
+
+  if (replies.length){
+    body.appendChild(el('div',{class:'nt-sec'}, '✉ Replies to send (' + replies.length + ') — prospects waiting on you'));
+    const rl = el('div',{class:'nt-list'});
+    replies.forEach(({deck, email}) => {
+      const days = Math.max(0, Math.round((Date.now() - new Date(email.date).getTime())/86400000));
+      rl.appendChild(el('div',{class:'nt-row'},
+        el('span',{class:'nt-check reply-ic', html:TL_ICON.mail}),
+        el('div',{class:'nt-body'},
+          el('div',{class:'nt-task'}, el('span',{class:'nt-acct', onClick:()=>openLead(deck,'tasks')}, deck.school), el('span',{class:'reply-subj'}, ' — ' + (email.subject || '(no subject)'))),
+          el('div',{class:'nt-meta'}, (deck.contactFirst || deck.contactEmail || 'Contact') + ' replied ' + (days===0?'today':days===1?'yesterday':(days+'d ago')) + (email.snippet ? (' · “' + String(email.snippet).slice(0,90) + '”') : ''))),
+        el('div',{class:'nt-actions'},
+          el('button',{class:'btn sm primary', type:'button', onClick:()=>openEmailModal(deck, { attach:false, replyTo:{ id:email.id, subject:email.subject, snippet:email.snippet, date:email.date } })}, 'Draft reply'),
+          el('button',{class:'btn ghost sm', type:'button', title:'No reply needed', onClick:()=>{ saveDeckPatch(deck, { replyDoneId: email.id }); renderTasksSection(); }}, 'Dismiss'))
+      ));
+    });
+    body.appendChild(rl);
+  }
 
   body.appendChild(el('div',{class:'nt-sec'}, 'Open tasks (' + openTasks.length + ')'));
   const tl = el('div',{class:'nt-list'});
@@ -5535,6 +5584,7 @@ function openEmailModal(deck, opts){
       const now = new Date().toISOString();
       const patch = { contactEmail: to, lastEmailAt: now, updatedAt: now };
       if (wantDeck) patch.emailedAt = now;   // attaching the presentation marks the "deck sent" milestone
+      if (opts.replyTo && opts.replyTo.id) patch.replyDoneId = opts.replyTo.id;   // clear it from the reply queue
       upsertDeck(Object.assign({}, cur, patch));
       closeModal();
       if (state.view==='lead' && state.leadId===cur.id) renderLead(cur); else renderDashboard();
@@ -5601,8 +5651,24 @@ function openEmailModal(deck, opts){
     finally { suggestBtn.disabled = false; sgLabel.textContent = 'Rewrite with AI'; }
   }
   suggestBtn.addEventListener('click', doDraft);
+  async function doReplyDraft(inbound){
+    if (!SUPABASE_URL){ set('Cloud isn’t configured, so we can’t reach the AI service.'); return; }
+    suggestBtn.disabled = true; sgLabel.textContent = 'Writing…';
+    set('Reading their email and drafting a reply…');
+    subjInput.value = 'Re: ' + String(inbound.subject||'').replace(/^re:\s*/i,'').trim();
+    bodyArea.value = ''; bodyArea.setAttribute('placeholder', 'Writing a reply to their email…');
+    try {
+      const cur = DB.decks.find(d => d.id === deck.id) || deck;
+      const data = await generateReply(cur, inbound);
+      if (data.replySubject) subjInput.value = data.replySubject;
+      if (data.replyBody) bodyArea.value = data.replyBody;
+      if (data.intent){ recNote.innerHTML=''; recNote.appendChild(el('span',{class:'rec-icon', html:BULB_ICON.replace('width="13" height="13"','width="15" height="15"')})); recNote.appendChild(el('div',{}, el('div',{class:'rec-label'},'Drafted in reply'), el('div',{}, 'Detected intent: ' + String(data.intent).replace(/_/g,' ')))); recNote.style.display=''; }
+      set('Reply drafted. Review and send.');
+    } catch(e){ set('Couldn’t draft a reply: ' + (e && e.message ? e.message : e)); }
+    finally { suggestBtn.disabled = false; sgLabel.textContent = 'Rewrite with AI'; }
+  }
   const body = el('div',{},
-    el('div',{class:'modal-h'},'Email the prospect'),
+    el('div',{class:'modal-h'}, opts.replyTo ? ('Reply to ' + ((deck.contactFirst||'').trim() || deck.contactEmail || 'the prospect')) : 'Email the prospect'),
     el('div',{class:'modal-desc'},'Review and send it from your Gmail. Attachments are optional — your signature is added automatically.'),
     el('div',{class:'field'}, el('label',{},'To'), toInput),
     el('div',{class:'field'}, el('label',{},'Subject'), subjInput),
@@ -5631,8 +5697,10 @@ function openEmailModal(deck, opts){
     )
   );
   openModal(body, { drawer: true });
-  // Launch straight into an AI-written draft when asked (nudges + lead "Draft email").
-  if (opts.draft && (opts.draft.subject || opts.draft.body)){
+  // Launch straight into an AI-written draft when asked (nudges + lead "Draft email" + reply queue).
+  if (opts.replyTo){
+    doReplyDraft(opts.replyTo);
+  } else if (opts.draft && (opts.draft.subject || opts.draft.body)){
     if (opts.draft.subject) subjInput.value = opts.draft.subject;
     if (opts.draft.body) bodyArea.value = opts.draft.body;
     showRec(opts.draft.recommendation);
