@@ -2421,6 +2421,30 @@
   .velocity-lbl { font-size: 12px; font-weight: 600; color: var(--ink-4); margin-top: 4px; }
   .velocity-sub { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-4); margin: 20px 0 0; }
   .metric-table tr.clickrow { cursor: pointer; }
+  /* Forecast */
+  .fc-heads { display: flex; gap: 28px; }
+  .fc-num { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .fc-num.accent { color: var(--accent); }
+  .fc-lbl { font-size: 12px; font-weight: 600; color: var(--ink-4); margin-top: 4px; }
+  /* Goals */
+  .goals { display: flex; flex-direction: column; gap: 18px; }
+  .goal-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 7px; }
+  .goal-label { font-size: 13.5px; font-weight: 700; color: var(--ink); }
+  .goal-val { font-size: 13px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .goal-bar { position: relative; height: 10px; background: var(--wash); border-radius: 5px; overflow: visible; }
+  .goal-fill { height: 100%; border-radius: 5px; }
+  .goal-fill.ahead { background: #1f9d55; }
+  .goal-fill.behind { background: var(--accent); }
+  .goal-fill.none { background: var(--border); }
+  .goal-pace { position: absolute; top: -3px; width: 2px; height: 16px; background: var(--ink); border-radius: 1px; }
+  .goal-pace::after { content: ''; position: absolute; top: -3px; left: -2px; border: 3px solid transparent; border-top-color: var(--ink); }
+  .goal-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 7px; }
+  .goal-target-wrap { font-size: 12px; color: var(--ink-4); display: inline-flex; align-items: center; gap: 6px; }
+  .goal-input { width: 84px; font: inherit; font-size: 12.5px; padding: 3px 7px; border: 1px solid var(--border); border-radius: 6px; text-align: right; }
+  .goal-input:focus { outline: none; border-color: var(--accent); }
+  .goal-status { font-size: 12px; font-weight: 700; }
+  .goal-status.ok { color: #1f7d45; }
+  .goal-status.warn { color: var(--accent-dark, #c2302b); }
   @media (max-width: 720px){ .velocity-stats { grid-template-columns: repeat(2, 1fr); } .funnel-row { grid-template-columns: 90px 1fr; } .funnel-conv { grid-column: 2; padding-left: 0; } }
   .mx-range-btn { font: inherit; font-size: 13px; font-weight: 600; color: var(--ink-3); background: var(--paper); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 12px; cursor: pointer; }
   .mx-range-btn:hover { border-color: var(--ink-3); }
@@ -3274,6 +3298,13 @@ function saveSources(list){
 }
 function sourceNames(){ return SOURCES.map(s => s.name); }
 function subsFor(name){ const s = SOURCES.find(x => x.name === name); return s ? s.subs : []; }
+/* ---- Monthly goals (dashboard pacing) ---- */
+const GOALS_KEY = 'gl_goals_v1';
+const DEFAULT_GOALS = { leads:0, demos:0, sales:0 };
+let GOALS = Object.assign({}, DEFAULT_GOALS);
+function goalsConfig(){ return { type:'goals', goals: GOALS }; }
+function applyGoals(cfg){ if (cfg && cfg.goals) GOALS = Object.assign({}, DEFAULT_GOALS, { leads:Number(cfg.goals.leads)||0, demos:Number(cfg.goals.demos)||0, sales:Number(cfg.goals.sales)||0 }); }
+function saveGoals(g){ applyGoals({ goals:g }); saveJSON(GOALS_KEY, goalsConfig()); if (cloudOn()) sbUpsert('settings', 'goals', goalsConfig()).catch(e => console.warn('goals sync failed', e)); }
 function sourceLabel(deck){ const src = deck.leadSource || ''; return src + (deck.leadSubSource ? ' — ' + deck.leadSubSource : ''); }
 // A source <select> + conditional sub-source <select>, wired so the sub options swap when the source changes.
 function sourceFields(currentSource, currentSub){
@@ -3463,6 +3494,7 @@ applyAutomation(loadJSON(AUTOMATION_KEY, null));   // restore automation toggles
 applyPlaybooks(loadJSON(PLAYBOOKS_KEY, null));      // restore stage playbooks (cloud copy loads in refreshFromCloud)
 applySequences(loadJSON(SEQUENCES_KEY, null));      // restore email sequences (cloud copy loads in refreshFromCloud)
 applySources(loadJSON(SOURCES_KEY, null));          // restore lead sources (cloud copy loads in refreshFromCloud)
+applyGoals(loadJSON(GOALS_KEY, null));               // restore monthly goals
 function getDecks(){ return DB.decks; }
 function getTeam(){ return DB.team; }
 function persistDecks(){ saveJSON(DECKS_KEY, DB.decks); }
@@ -3572,6 +3604,8 @@ async function refreshFromCloud(){
   if (playbooks){ applyPlaybooks(playbooks); saveJSON(PLAYBOOKS_KEY, playbooksConfig()); }
   const sequences = (settings || []).find(s => s && s.type === 'sequences');
   if (sequences){ applySequences(sequences); saveJSON(SEQUENCES_KEY, sequencesConfig()); }
+  const goals = (settings || []).find(s => s && s.type === 'goals');
+  if (goals){ applyGoals(goals); saveJSON(GOALS_KEY, goalsConfig()); }
   const sources = (settings || []).find(s => s && s.type === 'sources');
   if (sources){ applySources(sources); saveJSON(SOURCES_KEY, sourcesConfig()); }
   return { blocked: false };
@@ -6183,8 +6217,10 @@ function renderMetrics(){
     kpi('Collected', paid.length + (paidAmt?(' · '+fmtUSD(paidAmt)):''), 'Deals marked Paid in this window and the total collected.'),
     kpi('Open pipeline', fmtUSD(openAmt), 'Total annual value of all currently-open deals. A live snapshot — not limited to the date window.')
   ));
+  body.appendChild(el('div',{class:'metric-grid'}, goalsSection(decks), forecastSection(decks)));
   body.appendChild(funnelSection(leads, repName));
   body.appendChild(velocitySection(decks, demos, commits, won, repName));
+  body.appendChild(activitySection(decks, team, inR, repName));
   const schoolCol = {label:'School', get:d=>d.school};
   const repCol = {label:'Rep', get:d=>repName(d.salespersonId)};
   const amtCol = {label:'Amount', num:true, get:d=>fmtUSD(dealAmount(d)), total:d=>dealAmount(d), totalFmt:fmtUSD};
@@ -6273,6 +6309,116 @@ function velocitySection(decks, demos, commits, won, repName){
         el('td',{}, el('span',{class:'stage-chip stage-'+dealStage(s.deck)}, stageMeta(dealStage(s.deck)).short)),
         el('td',{class:'num'}, String(s.days)),
         el('td',{}, healthChip(s.deck)||el('span',{class:'muted'},'—'))))))));
+  return card;
+}
+// Unified email list for a deck (app-sent activities + Gmail-synced), deduped by message id.
+function deckEmails(deck){
+  const out = [];
+  deckActivities(deck).forEach(a => { if (a.type==='email') out.push({ date:a.date, sent: a.dir!=='received', id: a.emailId||'' }); });
+  cachedEmailsFor(deck).forEach(e => out.push({ date:e.date, sent: !!e.sent, id: e.id||'' }));
+  const seen = new Set();
+  return out.filter(x => { const k = x.id || (x.date + '|' + (x.sent?'s':'r')); if (seen.has(k)) return false; seen.add(k); return true; });
+}
+// Activity scoreboard — leading indicators per rep within the window.
+function activitySection(decks, team, inR, repName){
+  const stats = {};
+  const ensure = id => stats[id] || (stats[id] = { emails:0, calls:0, meetings:0, seq:0, emailed:0, replied:0 });
+  decks.forEach(d => {
+    const s = ensure(d.salespersonId || '__un__');
+    const ems = deckEmails(d);
+    const sent = ems.filter(e=>e.sent && inR(e.date));
+    const recv = ems.filter(e=>!e.sent && inR(e.date));
+    s.emails += sent.length;
+    s.calls += deckActivities(d).filter(a=>a.type==='call' && inR(a.date)).length;
+    s.meetings += cachedMeetingsFor(d).filter(m=>inR(m.start)).length;
+    const ss = seqState(d); if (ss && ss.active) s.seq += 1;
+    if (sent.length) s.emailed += 1;
+    if (recv.length) s.replied += 1;
+  });
+  const rows = team.filter(p=>stats[p.id]).map(p=>({ name:p.name, s:stats[p.id] }));
+  if (stats['__un__']) rows.push({ name:'Unassigned', s:stats['__un__'] });
+  rows.sort((a,b)=> b.s.emails - a.s.emails);
+  const card = el('div',{class:'metric-card'});
+  card.appendChild(el('div',{class:'metric-h'}, el('span',{},'Activity scoreboard'),
+    infoTip('Leading indicators per rep in this window — the outreach a rep controls. Reply rate = % of prospects this rep emailed who wrote back. Email/meeting counts include Gmail-synced activity.')));
+  if (!rows.length){ card.appendChild(el('div',{class:'lead-empty', style:'padding:18px 4px'},'No rep activity in this window yet.')); return card; }
+  const rr = s => s.emailed ? Math.round(100*s.replied/s.emailed) + '%' : '—';
+  card.appendChild(el('div',{class:'metric-table-scroll'},
+    el('table',{class:'metric-table'},
+      el('thead',{}, el('tr',{}, el('th',{},'Rep'), el('th',{class:'num'},'Emails sent'), el('th',{class:'num'},'Calls'), el('th',{class:'num'},'Meetings'), el('th',{class:'num'},'Sequences'), el('th',{class:'num'},'Reply rate'))),
+      el('tbody',{}, ...rows.map(r => el('tr',{},
+        el('td',{}, r.name),
+        el('td',{class:'num'}, String(r.s.emails)),
+        el('td',{class:'num'}, String(r.s.calls)),
+        el('td',{class:'num'}, String(r.s.meetings)),
+        el('td',{class:'num'}, String(r.s.seq)),
+        el('td',{class:'num'}, rr(r.s))))))));
+  return card;
+}
+const STAGE_PROB = { newlead:0.05, demoscheduled:0.20, noshow:0.10, democompleted:0.40, verbalcommit:0.75 };
+// Weighted pipeline forecast (live snapshot of open deals; respects the rep filter).
+function forecastSection(allDecks){
+  const open = allDecks.filter(isOpenDeal);
+  const order = ['verbalcommit','democompleted','demoscheduled','noshow','newlead'];
+  const byStage = {};
+  open.forEach(d => { const s=dealStage(d); const b=byStage[s]=byStage[s]||{n:0,amt:0,w:0}; const a=dealAmount(d); b.n++; b.amt+=a; b.w += a*(STAGE_PROB[s]||0); });
+  const weighted = Object.values(byStage).reduce((a,b)=>a+b.w,0);
+  const best = open.reduce((a,d)=>a+dealAmount(d),0);
+  const card = el('div',{class:'metric-card'});
+  card.appendChild(el('div',{class:'metric-h'}, el('span',{},'Forecast'),
+    infoTip('Weighted pipeline = each open deal’s value × a stage win-probability (verbal commit 75%, demo done 40%, demo scheduled 20%, no-show 10%, new lead 5%). Best case = all open value. Live snapshot, not limited to the date window.')));
+  card.appendChild(el('div',{class:'fc-heads'},
+    el('div',{class:'fc-head'}, el('div',{class:'fc-num accent'}, fmtUSD(Math.round(weighted))), el('div',{class:'fc-lbl'},'Weighted forecast')),
+    el('div',{class:'fc-head'}, el('div',{class:'fc-num'}, fmtUSD(best)), el('div',{class:'fc-lbl'},'Best case (all open)'))));
+  const rows = order.filter(s=>byStage[s]);
+  if (rows.length) card.appendChild(el('div',{class:'metric-table-scroll', style:'margin-top:14px'},
+    el('table',{class:'metric-table'},
+      el('thead',{}, el('tr',{}, el('th',{},'Stage'), el('th',{class:'num'},'Deals'), el('th',{class:'num'},'Pipeline'), el('th',{class:'num'},'Win %'), el('th',{class:'num'},'Weighted'))),
+      el('tbody',{}, ...rows.map(s => el('tr',{},
+        el('td',{}, el('span',{class:'stage-chip stage-'+s}, stageMeta(s).short)),
+        el('td',{class:'num'}, String(byStage[s].n)),
+        el('td',{class:'num'}, fmtUSD(byStage[s].amt)),
+        el('td',{class:'num'}, Math.round((STAGE_PROB[s]||0)*100)+'%'),
+        el('td',{class:'num'}, fmtUSD(Math.round(byStage[s].w)))))))));
+  return card;
+}
+// Monthly goals + pacing (current month vs targets; pace marker shows % of month elapsed).
+function goalsSection(decks){
+  const mk = new Date().toISOString().slice(0,7);
+  const inMonth = dt => dt && String(dt).slice(0,7) === mk;
+  const leadsM = decks.filter(d=>inMonth(d.createdAt)).length;
+  const demosM = decks.filter(d=>inMonth(demoDate(d))).length;
+  const salesAmtM = decks.filter(d=>inMonth(closedWonDate(d))).reduce((a,d)=>a+dealAmount(d),0);
+  const now = new Date(); const dim = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+  const pace = Math.round(100*now.getDate()/dim);
+  const card = el('div',{class:'metric-card'});
+  card.appendChild(el('div',{class:'metric-h'}, el('span',{}, 'Goals — ' + now.toLocaleDateString(undefined,{month:'long'})),
+    infoTip('This month’s actuals vs your monthly targets. The vertical marker is your pace — you’re ' + pace + '% through the month, so a bar past the marker is ahead. Type a target to set it (saved for the team).')));
+  const metrics = [
+    { key:'leads', label:'New leads', actual:leadsM, fmt:String },
+    { key:'demos', label:'Demos', actual:demosM, fmt:String },
+    { key:'sales', label:'Sales', actual:salesAmtM, fmt:fmtUSD }
+  ];
+  const wrap = el('div',{class:'goals'});
+  metrics.forEach(m => {
+    const target = Number(GOALS[m.key])||0;
+    const pct = target ? Math.min(100, Math.round(100*m.actual/target)) : 0;
+    const ahead = target && pct >= pace;
+    const inp = el('input',{type:'number', min:'0', class:'goal-input', value: target||'', placeholder:'set'});
+    inp.addEventListener('change', ()=>{ const g = Object.assign({}, GOALS); g[m.key] = Number(inp.value)||0; saveGoals(g); renderMetrics(); });
+    inp.addEventListener('click', e=>e.stopPropagation());
+    wrap.appendChild(el('div',{class:'goal-row'},
+      el('div',{class:'goal-top'},
+        el('span',{class:'goal-label'}, m.label),
+        el('span',{class:'goal-val'}, m.fmt(m.actual) + (target ? (' / ' + m.fmt(target)) : ''))),
+      el('div',{class:'goal-bar'},
+        el('div',{class:'goal-fill ' + (target ? (ahead?'ahead':'behind') : 'none'), style:'width:'+pct+'%'}),
+        target ? el('div',{class:'goal-pace', style:'left:'+pace+'%'}) : null),
+      el('div',{class:'goal-foot'},
+        el('span',{class:'goal-target-wrap'}, 'Target ', inp),
+        target ? el('span',{class:'goal-status ' + (ahead?'ok':'warn')}, pct + '% · pace ' + pace + '%') : el('span',{class:'muted'}, 'no target set'))));
+  });
+  card.appendChild(wrap);
   return card;
 }
 function setDeckStage(deckId, newStage){
