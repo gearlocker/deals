@@ -1983,6 +1983,7 @@
   .lead-task { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid var(--border); }
   .lead-task:first-child { border-top: none; }
   .lead-task-cb { display: flex; align-items: center; gap: 9px; font-size: 14px; color: var(--ink); cursor: pointer; }
+  .task-auto { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-4); background: var(--wash, #f4f3ef); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
   .lead-task.done .lead-task-cb { color: var(--ink-4); text-decoration: line-through; }
   .lead-task-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
   .lead-task-due { font-size: 12px; color: var(--ink-4); font-weight: 600; }
@@ -2898,9 +2899,9 @@ function saveRubric(arr){
 
 /* ---- Automation toggles (Settings → Automation) — control the on-load background tasks ---- */
 const AUTOMATION_KEY = 'gl_automation_v1';
-let AUTOMATION = { autoGrade: true, autoFollowup: true, nudgeDays: 10 };
-function automationConfig(){ return { type:'automation', autoGrade: !!AUTOMATION.autoGrade, autoFollowup: !!AUTOMATION.autoFollowup, nudgeDays: Number(AUTOMATION.nudgeDays) || 10 }; }
-function applyAutomation(cfg){ if (cfg && typeof cfg === 'object'){ if (typeof cfg.autoGrade !== 'undefined') AUTOMATION.autoGrade = !!cfg.autoGrade; if (typeof cfg.autoFollowup !== 'undefined') AUTOMATION.autoFollowup = !!cfg.autoFollowup; if (cfg.nudgeDays != null && cfg.nudgeDays !== '') AUTOMATION.nudgeDays = Number(cfg.nudgeDays) || 10; } }
+let AUTOMATION = { autoGrade: true, autoFollowup: true, nudgeDays: 10, stagePlaybooks: true };
+function automationConfig(){ return { type:'automation', autoGrade: !!AUTOMATION.autoGrade, autoFollowup: !!AUTOMATION.autoFollowup, nudgeDays: Number(AUTOMATION.nudgeDays) || 10, stagePlaybooks: !!AUTOMATION.stagePlaybooks }; }
+function applyAutomation(cfg){ if (cfg && typeof cfg === 'object'){ if (typeof cfg.autoGrade !== 'undefined') AUTOMATION.autoGrade = !!cfg.autoGrade; if (typeof cfg.autoFollowup !== 'undefined') AUTOMATION.autoFollowup = !!cfg.autoFollowup; if (cfg.nudgeDays != null && cfg.nudgeDays !== '') AUTOMATION.nudgeDays = Number(cfg.nudgeDays) || 10; if (typeof cfg.stagePlaybooks !== 'undefined') AUTOMATION.stagePlaybooks = !!cfg.stagePlaybooks; } }
 function saveAutomation(cfg){
   applyAutomation(cfg);
   saveJSON(AUTOMATION_KEY, automationConfig());
@@ -3116,6 +3117,29 @@ const STAGES = [
   { key:'closedwon',     label:'Closed Won',         short:'Won' },
   { key:'closedlost',    label:'Closed Lost',        short:'Lost' }
 ];
+// When a deal first enters a stage, auto-create this checklist (once per deal per stage). dueDays = offset from today.
+const STAGE_PLAYBOOKS = {
+  newlead:       [ { text:'Reach out to book a demo', dueDays:1 } ],
+  demoscheduled: [ { text:'Send a confirmation + calendar invite', dueDays:0 }, { text:'Prep for the demo — review their programs & enrollment', dueDays:1 } ],
+  noshow:        [ { text:'Send a reschedule note and re-book the demo', dueDays:1 } ],
+  democompleted: [ { text:'Send the recap + proposal', dueDays:1 }, { text:'Build the quote (enrollment, programs, pricing)', dueDays:1 }, { text:'Follow up on next steps', dueDays:4 } ],
+  verbalcommit:  [ { text:'Send the agreement to sign', dueDays:1 }, { text:'Confirm start date & onboarding plan', dueDays:2 }, { text:'Follow up for signature', dueDays:5 } ],
+  closedwon:     [ { text:'Kick off onboarding — schedule the setup call', dueDays:1 }, { text:'Send the welcome email + onboarding checklist', dueDays:1 }, { text:'Provision their account', dueDays:2 }, { text:'Schedule a 30-day check-in', dueDays:30 } ],
+  closedlost:    [ { text:'Note the lost reason', dueDays:0 }, { text:'Add to nurture — re-engage', dueDays:90 } ]
+};
+// Returns {tasks, autoFired, history, count} to merge into the deck, or null if nothing to do.
+function applyStageAutomation(deck, newStage){
+  if (!AUTOMATION.stagePlaybooks) return null;
+  const pb = STAGE_PLAYBOOKS[newStage]; if (!pb || !pb.length) return null;
+  const fired = Object.assign({}, deck.autoFired || {});
+  if (fired[newStage]) return null;   // only fire a stage's playbook once per deal
+  fired[newStage] = new Date().toISOString();
+  const now = Date.now();
+  const added = pb.map(t => ({ id: uid('t_'), text: t.text, due: (t.dueDays != null ? new Date(now + t.dueDays*86400000).toISOString().slice(0,10) : ''), done:false, createdAt:new Date().toISOString(), auto:true, stage:newStage }));
+  const tasks = deckTasks(deck).concat(added);
+  const history = pushHist(deck.history, 'auto', added.length + ' task' + (added.length>1?'s':'') + ' added for ' + stageMeta(newStage).label);
+  return { tasks, autoFired: fired, history, count: added.length };
+}
 const STAGE_MAP_OLD = { active:'newlead', won:'closedwon', lost:'closedlost', hold:'newlead' };  // migrate the old 4-stage values
 const LEAD_SOURCES = ['Cold outreach','Inbound / website','Referral','Event / conference','Partner','Other'];
 function dealStage(deck){
@@ -3371,11 +3395,16 @@ function openEditModal(deck){
     if (newStage && !sd[newStage]) sd[newStage] = new Date().toISOString();
     let hist = deck.history;
     if ((deck.salespersonId||'') !== repSelect.value){ const nm = (getTeam().find(p=>p.id===repSelect.value)||{}).name || 'Unassigned'; hist = pushHist(hist, 'owner', 'Owner → ' + nm); }
-    if (dealStage(deck) !== newStage) hist = pushHist(hist, 'stage', 'Stage → ' + stageMeta(newStage).label);
+    let autoTasks = null, autoFired = deck.autoFired;
+    if (dealStage(deck) !== newStage){
+      hist = pushHist(hist, 'stage', 'Stage → ' + stageMeta(newStage).label);
+      const auto = applyStageAutomation(Object.assign({}, deck, { history: hist }), newStage);
+      if (auto){ autoTasks = auto.tasks; autoFired = auto.autoFired; hist = auto.history; }
+    }
     upsertDeck(Object.assign({}, deck, { school: school, salespersonId: repSelect.value, stage: newStage, stageDates: sd,
       contactFirst: firstInput.value.trim(), contactLast: lastInput.value.trim(), contactEmail: emailInput.value.trim(),
       contactPhone: phoneInput.value.trim(), amount: amountInput.value.trim(), leadSource: sourceSelect.value,
-      history: hist, updatedAt: new Date().toISOString() }));
+      tasks: autoTasks || deck.tasks, autoFired: autoFired, history: hist, updatedAt: new Date().toISOString() }));
     closeModal();
     renderDashboard();
   };
@@ -3644,7 +3673,7 @@ function renderTeamSettings(){
   return wrap;
 }
 function renderAutomationSettings(){
-  const draft = { autoGrade: !!AUTOMATION.autoGrade, autoFollowup: !!AUTOMATION.autoFollowup, nudgeDays: Number(AUTOMATION.nudgeDays) || 10 };
+  const draft = { autoGrade: !!AUTOMATION.autoGrade, autoFollowup: !!AUTOMATION.autoFollowup, nudgeDays: Number(AUTOMATION.nudgeDays) || 10, stagePlaybooks: !!AUTOMATION.stagePlaybooks };
   const status = el('span',{class:'settings-saved'}, '');
   function toggleRow(key, title, desc){
     const input = el('input',{type:'checkbox'}); input.checked = draft[key];
@@ -3661,6 +3690,7 @@ function renderAutomationSettings(){
     el('p',{class:'settings-subtitle'}, 'Control what runs automatically when the dashboard loads. Saved for the whole team.'),
     toggleRow('autoGrade', 'Auto-grade calls', 'When the dashboard loads, automatically pull each deck’s Fathom call and grade it against your rubric — once per deck. Turn off to grade only when you click the analyze icon. (Each grade uses Claude.)'),
     toggleRow('autoFollowup', 'Auto-check follow-ups', 'When the dashboard loads, quietly check reps’ calendars for booked follow-ups and update the chips. Turn off to check only via the Follow-ups button.'),
+    toggleRow('stagePlaybooks', 'Stage playbooks', 'When a deal first moves into a stage, auto-create that stage’s task checklist (e.g. Closed Won → schedule kickoff, send welcome, provision, 30-day check-in). Fires once per deal per stage; you can delete any task you don’t need.'),
     el('div',{class:'auto-row'},
       el('div',{}, el('div',{class:'auto-h'}, 'Nudge after'), el('div',{class:'auto-p'}, 'Flag a deal as “needs a nudge” when there’s no upcoming follow-up and there’s been no activity (call, email, or meeting) for this many days.')),
       el('label',{class:'rub-weight-wrap'}, nudgeInput, el('span',{},'days'))
@@ -4135,7 +4165,7 @@ function renderLeadTasks(deck){
     cb.addEventListener('change', ()=>{ toggleTask(deck, t.id); renderLead(deck); });
     const overdue = t.due && !t.done && parseDay(t.due).getTime() < parseDay(new Date().toISOString()).getTime();
     list.appendChild(el('div',{class:'lead-task' + (t.done?' done':'')},
-      el('label',{class:'lead-task-cb'}, cb, el('span',{}, t.text)),
+      el('label',{class:'lead-task-cb'}, cb, el('span',{}, t.text), t.auto ? el('span',{class:'task-auto', title:'Auto-created by a stage playbook'},'auto') : null),
       el('div',{class:'lead-task-right'},
         t.due ? el('span',{class:'lead-task-due' + (overdue?' overdue':'')}, fmtDay(t.due)) : null,
         el('button',{class:'lead-task-x', type:'button', title:'Delete', onClick:()=>{ deleteTask(deck, t.id); renderLead(deck); }}, '✕'))
@@ -4647,7 +4677,11 @@ function setDeckStage(deckId, newStage){
   const sd=Object.assign({}, cur.stageDates||{});
   if (newStage && !sd[newStage]) sd[newStage]=new Date().toISOString();
   const patch = { stage:newStage, stageDates:sd, updatedAt:new Date().toISOString() };
-  if (old !== newStage) patch.history = pushHist(cur.history, 'stage', 'Stage → ' + stageMeta(newStage).label);
+  if (old !== newStage){
+    patch.history = pushHist(cur.history, 'stage', 'Stage → ' + stageMeta(newStage).label);
+    const auto = applyStageAutomation(Object.assign({}, cur, { history: patch.history }), newStage);
+    if (auto){ patch.tasks = auto.tasks; patch.autoFired = auto.autoFired; patch.history = auto.history; }
+  }
   upsertDeck(Object.assign({}, cur, patch));
 }
 
