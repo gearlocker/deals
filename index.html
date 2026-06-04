@@ -4481,7 +4481,7 @@ function briefingCandidates(){
   });
   return out.sort((a,b)=>b.score-a.score).slice(0, 25);
 }
-function briefingKey(){ return 'gl_briefing_' + String((AUTH&&AUTH.email)||'').toLowerCase() + '_' + new Date().toISOString().slice(0,10); }
+function briefingKey(){ return 'gl_briefing_v2_' + String((AUTH&&AUTH.email)||'').toLowerCase() + '_' + new Date().toISOString().slice(0,10); }
 async function generateBriefing(cands){
   const rep = currentRep();
   const payload = {
@@ -4496,6 +4496,9 @@ async function generateBriefing(cands){
       hasReply: !!c.inbound, replySnippet: c.inbound ? (c.inbound.snippet || c.inbound.subject || '') : '',
       tasksDue: c.tasksDue.map(t => t.text), followupToday: c.fuToday,
       lastGrade: (c.deck.callGrade && c.deck.callGrade.grade) || '',
+      emailed: c.deck.emailedAt ? String(c.deck.emailedAt).slice(0,10) : '',
+      recentEmails: cachedEmailsFor(c.deck).slice(0,6).map(e => ({ date:String(e.date).slice(0,10), dir:e.sent?'sent':'received', subject:e.subject||'' })),
+      notes: deckActivities(c.deck).filter(a => a.type==='note' || a.type==='call').slice(-3).map(a => ({ date:String(a.date).slice(0,10), type:a.type, text:String(a.text||'').slice(0,160) })),
       nextStep: (c.deck.ai && c.deck.ai.recommendation) || ''
     }))
   };
