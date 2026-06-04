@@ -1986,6 +1986,17 @@
   .lead-edit-input.unassigned { color: var(--accent); border-color: var(--accent); border-style: dashed; font-weight: 600; }
   .lead-name-edit { display: flex; gap: 6px; max-width: 64%; }
   .lead-name-edit .lead-edit-input { max-width: none; flex: 1 1 0; text-align: left; }
+  .contact-block { padding-top: 12px; border-top: 1px dashed var(--border); margin-top: 12px; }
+  .contact-block.primary { padding-top: 0; border-top: none; margin-top: 0; }
+  .contact-block-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; min-height: 22px; }
+  .contact-block-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-4); }
+  .contact-block-actions { display: flex; align-items: center; gap: 2px; }
+  .contact-mini-btn { font: inherit; font-size: 11.5px; font-weight: 600; color: var(--ink-4); background: none; border: none; cursor: pointer; padding: 2px 7px; border-radius: 6px; }
+  .contact-mini-btn:hover { color: var(--accent); background: var(--wash); }
+  .contact-mini-btn.x { font-size: 13px; padding: 2px 6px; }
+  .to-row { display: flex; flex-direction: column; gap: 6px; }
+  .to-picker { font: inherit; font-size: 14px; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--paper); color: var(--ink); cursor: pointer; }
+  .to-picker:focus { outline: none; border-color: var(--accent); }
   .lead-link-a { color: var(--accent); text-decoration: none; }
   .lead-amt-wrap { display: inline-flex; align-items: center; gap: 2px; }
   .lead-amt-$ { color: var(--ink-3); font-size: 13px; }
@@ -4595,7 +4606,9 @@ function leadTimeline(deck, meetings, emails){
   (Array.isArray(deck.history) ? deck.history : []).forEach(h => ev.push({ date:h.at, icon:TL_ICON.log, title:h.detail || 'Updated', sub:(h.by ? String(h.by).split(/\s+/)[0] : '') + '  ·  log', muted:true, del:()=>{ deleteHistory(deck, h); rerender(); }, delMsg:'Remove this entry from the timeline? (If it was a stage change, set the stage back with the dropdown up top so the AI re-reads it.)' }));
   (meetings||[]).forEach(m => ev.push({ date:m.start, icon:TL_ICON.cal, title: m.title || 'Meeting', sub:'Calendar' }));
   (emails||[]).forEach(m => { if (m.id && loggedEmailIds.has(m.id)) return;   // already shown as a sent-from-app email
-    ev.push({ date:m.date, icon:TL_ICON.mail, title: m.subject || '(no subject)', sub: (m.sent ? 'You → ' + (deck.contactFirst||'contact') : (deck.contactFirst||'Contact') + ' → you') + '  ·  Gmail', email:true, emailId:m.id, snippet:m.snippet }); });
+    const whoName = (m.email ? contactNameByEmail(deck, m.email) : '') || deck.contactFirst || 'contact';
+    const whoFirst = String(whoName).split(/\s+/)[0];
+    ev.push({ date:m.date, icon:TL_ICON.mail, title: m.subject || '(no subject)', sub: (m.sent ? 'You → ' + whoFirst : whoFirst + ' → you') + '  ·  Gmail', email:true, emailId:m.id, snippet:m.snippet }); });
   ev.sort((a,b)=> new Date(b.date).getTime() - new Date(a.date).getTime());
   return ev;
 }
@@ -4613,8 +4626,45 @@ function gactKey(){ return 'gl_gactivity_' + String((AUTH&&AUTH.email)||'').toLo
 function loadGActivity(){ try { const a=JSON.parse(localStorage.getItem(gactKey())||'null'); if (a&&a.byEmail&&a.v===GACT_V){ GACTIVITY=Object.assign({byEmail:{},meetingsByEmail:{},syncedAt:null,syncing:false,counts:{emails:0,meetings:0,contacts:0}}, a, {syncing:false}); } } catch(e){} }
 function saveGActivity(){ try { localStorage.setItem(gactKey(), JSON.stringify({ v:GACT_V, byEmail:GACTIVITY.byEmail, meetingsByEmail:GACTIVITY.meetingsByEmail, syncedAt:GACTIVITY.syncedAt, counts:GACTIVITY.counts })); } catch(e){} }
 function extractEmails(s){ return (String(s||'').match(/[\w.+-]+@[\w-]+\.[\w.-]+/g)||[]).map(x=>x.toLowerCase()); }
-function cachedEmailsFor(deck){ const e=(deck.contactEmail||'').toLowerCase().trim(); return e ? (GACTIVITY.byEmail[e]||[]) : []; }
-function cachedMeetingsFor(deck){ const e=(deck.contactEmail||'').toLowerCase().trim(); return e ? (GACTIVITY.meetingsByEmail[e]||[]) : []; }
+/* ---- Multiple contacts per lead. The primary stays on deck.contactFirst/Last/Email/Phone
+        (so all existing code keeps working); deck.contacts[] holds additional people. ---- */
+function deckContacts(deck){ return Array.isArray(deck.contacts) ? deck.contacts : []; }
+function allContacts(deck){
+  const primary = { id:'__primary__', first: deck.contactFirst||'', last: deck.contactLast||'', email: deck.contactEmail||'', phone: deck.contactPhone||'', primary:true };
+  return [primary].concat(deckContacts(deck));
+}
+function allContactEmails(deck){
+  const out = []; allContacts(deck).forEach(c => { const e=(c.email||'').toLowerCase().trim(); if (e && out.indexOf(e)<0) out.push(e); }); return out;
+}
+function contactNameByEmail(deck, email){
+  const e=(email||'').toLowerCase().trim();
+  const c = allContacts(deck).find(c => (c.email||'').toLowerCase().trim() === e);
+  return c ? ([c.first,c.last].filter(Boolean).join(' ') || c.email) : '';
+}
+function mergeCacheFor(deck, store, dateKey){
+  const emails = allContactEmails(deck);
+  if (!emails.length) return [];
+  let out = []; emails.forEach(e => { const arr = store[e]; if (arr) out = out.concat(arr); });
+  const seen = new Set();
+  out = out.filter(x => { const k = x.id || ((x[dateKey]||'') + '|' + (x.subject||x.title||'')); if (seen.has(k)) return false; seen.add(k); return true; });
+  return out.sort((a,b)=> new Date(b[dateKey]) - new Date(a[dateKey]));
+}
+function cachedEmailsFor(deck){ return mergeCacheFor(deck, GACTIVITY.byEmail, 'date'); }
+function cachedMeetingsFor(deck){ return mergeCacheFor(deck, GACTIVITY.meetingsByEmail, 'start'); }
+/* contact CRUD (additional contacts live in deck.contacts) */
+function addContact(deck){ saveDeckPatch(deck, { contacts: deckContacts(deck).concat([{ id:uid('c_'), first:'', last:'', email:'', phone:'' }]) }); renderLead(DB.decks.find(x=>x.id===deck.id)||deck); }
+function updateContact(deck, id, patch){ saveDeckPatch(deck, { contacts: deckContacts(deck).map(c => c.id===id ? Object.assign({}, c, patch) : c) }); }
+function removeContact(deck, id){ saveDeckPatch(deck, { contacts: deckContacts(deck).filter(c => c.id!==id) }); renderLead(DB.decks.find(x=>x.id===deck.id)||deck); }
+function makeContactPrimary(deck, id){
+  const cur = DB.decks.find(x=>x.id===deck.id) || deck;
+  const list = deckContacts(cur).slice();
+  const idx = list.findIndex(c => c.id===id); if (idx<0) return;
+  const promote = list[idx]; list.splice(idx,1);
+  const oldPrimary = { id:uid('c_'), first:cur.contactFirst||'', last:cur.contactLast||'', email:cur.contactEmail||'', phone:cur.contactPhone||'' };
+  if (oldPrimary.first||oldPrimary.last||oldPrimary.email||oldPrimary.phone) list.unshift(oldPrimary);
+  saveDeckPatch(deck, { contactFirst:promote.first||'', contactLast:promote.last||'', contactEmail:promote.email||'', contactPhone:promote.phone||'', contacts:list });
+  renderLead(DB.decks.find(x=>x.id===deck.id)||deck);
+}
 function b64urlDecode(s){ try { return decodeURIComponent(escape(atob(String(s||'').replace(/-/g,'+').replace(/_/g,'/')))); } catch(e){ try { return atob(String(s||'').replace(/-/g,'+').replace(/_/g,'/')); } catch(e2){ return ''; } } }
 function htmlToText(h){ return String(h||'')
   .replace(/<style[\s\S]*?<\/style>/gi,'').replace(/<script[\s\S]*?<\/script>/gi,'')
@@ -4662,7 +4712,7 @@ async function syncGoogleActivity(opts){
   const prog = m => { if (opts.onProgress) opts.onProgress(m); };
   try {
     const decks = getDecks();
-    const contacts = [...new Set(decks.map(d=>(d.contactEmail||'').toLowerCase().trim()).filter(Boolean))];
+    const contacts = [...new Set(decks.flatMap(d=>allContactEmails(d)))];   // every contact email across all leads (primary + additional)
     const contactSet = new Set(contacts);
     const byEmail = {}, meetingsByEmail = {};
     let scopeMissing = false;
@@ -4693,7 +4743,7 @@ async function syncGoogleActivity(opts){
             if (!date) return;
             const sent = String(hs['from']||'').toLowerCase().includes(me);
             const parties = new Set([...extractEmails(hs['from']), ...extractEmails(hs['to']), ...extractEmails(hs['cc'])]);
-            parties.forEach(p => { if (contactSet.has(p)) (byEmail[p]=byEmail[p]||[]).push({ date, subject: hs['subject']||'(no subject)', sent, snippet: m.snippet||'', id: m.id }); });
+            parties.forEach(p => { if (contactSet.has(p)) (byEmail[p]=byEmail[p]||[]).push({ date, subject: hs['subject']||'(no subject)', sent, snippet: m.snippet||'', id: m.id, email: p }); });
           });
           prog('Reading email… '+Math.min(i+10,idArr.length)+'/'+idArr.length);
         }
@@ -4731,8 +4781,10 @@ async function syncGoogleActivity(opts){
     // (and the server-side daily digest) reflect synced Gmail + calendar, not just tool actions.
     const nowMs = Date.now(), nowIso = new Date().toISOString();
     getDecks().forEach(d => {
-      const ce = (d.contactEmail||'').toLowerCase().trim(); if (!ce) return;
-      const em = byEmail[ce]||[], mt = meetingsByEmail[ce]||[];
+      const emails = allContactEmails(d); if (!emails.length) return;
+      let em = [], mt = [];
+      emails.forEach(e => { if (byEmail[e]) em = em.concat(byEmail[e]); if (meetingsByEmail[e]) mt = mt.concat(meetingsByEmail[e]); });
+      em.sort((a,b)=>new Date(b.date)-new Date(a.date)); mt.sort((a,b)=>new Date(b.start)-new Date(a.start));
       const lastEmail = em.length ? em[0].date : null;   // sorted desc
       const pastMt = mt.filter(m => m.start && new Date(m.start).getTime() <= nowMs);
       const lastMeeting = pastMt.length ? pastMt[0].start : null;
@@ -4991,17 +5043,35 @@ function leadSourceRows(deck){
   subSel.addEventListener('change', ()=> saveDeckPatch(deck, { leadSubSource: subSel.value }));
   return [ leadEditRow('Source', sourceSel), subRow ];
 }
+// One editable contact block (the primary lives on the deck fields; additional contacts in deck.contacts[]).
+function contactBlock(deck, c){
+  const isPrimary = !c;
+  const val = k => isPrimary ? (deck['contact' + k[0].toUpperCase() + k.slice(1)] || '') : (c[k] || '');
+  const firstI = el('input',{class:'lead-edit-input', value: val('first'), placeholder:'First'});
+  const lastI  = el('input',{class:'lead-edit-input', value: val('last'),  placeholder:'Last'});
+  const emailI = el('input',{class:'lead-edit-input', type:'email', value: val('email'), placeholder:'email@school.org'});
+  const phoneI = el('input',{class:'lead-edit-input', value: val('phone'), placeholder:'(555) 123-4567'});
+  const save = ()=> isPrimary
+    ? saveDeckPatch(deck, { contactFirst:firstI.value.trim(), contactLast:lastI.value.trim(), contactEmail:emailI.value.trim(), contactPhone:phoneI.value.trim() })
+    : updateContact(deck, c.id, { first:firstI.value.trim(), last:lastI.value.trim(), email:emailI.value.trim(), phone:phoneI.value.trim() });
+  [firstI,lastI,emailI,phoneI].forEach(i => i.addEventListener('change', save));
+  const head = el('div',{class:'contact-block-h'},
+    el('span',{class:'contact-block-label'}, isPrimary ? 'Primary' : 'Additional'),
+    isPrimary ? null : el('div',{class:'contact-block-actions'},
+      el('button',{class:'contact-mini-btn', type:'button', onClick:()=>makeContactPrimary(deck, c.id)}, 'Make primary'),
+      el('button',{class:'contact-mini-btn x', type:'button', title:'Remove contact', onClick:()=>{ if (confirm('Remove this contact?')) removeContact(deck, c.id); }}, '✕')));
+  return el('div',{class:'contact-block' + (isPrimary?' primary':'')}, head,
+    leadEditRow('Name', el('div',{class:'lead-name-edit'}, firstI, lastI)),
+    leadEditRow('Email', emailI),
+    leadEditRow('Phone', phoneI));
+}
 function leadContactCard(deck){
-  const firstInput = el('input',{class:'lead-edit-input', value: deck.contactFirst||'', placeholder:'First'});
-  const lastInput  = el('input',{class:'lead-edit-input', value: deck.contactLast||'', placeholder:'Last'});
-  const saveName = ()=> saveDeckPatch(deck, { contactFirst: firstInput.value.trim(), contactLast: lastInput.value.trim() });
-  firstInput.addEventListener('change', saveName); lastInput.addEventListener('change', saveName);
-  return el('div',{class:'lead-card'},
-    el('div',{class:'lead-card-h'},'Contact'),
-    leadEditRow('Name', el('div',{class:'lead-name-edit'}, firstInput, lastInput)),
-    leadEditRow('Email', leadEditInput(deck.contactEmail, v=>saveDeckPatch(deck,{contactEmail:v}), {type:'email', placeholder:'email@school.org'})),
-    leadEditRow('Phone', leadEditInput(deck.contactPhone, v=>saveDeckPatch(deck,{contactPhone:v}), {placeholder:'(555) 123-4567'}))
-  );
+  const card = el('div',{class:'lead-card'},
+    el('div',{class:'lead-card-h lead-card-h-row'}, el('span',{}, deckContacts(deck).length ? 'Contacts' : 'Contact'),
+      el('button',{class:'lead-viewall', type:'button', onClick:()=>addContact(deck)}, '+ Add contact')));
+  card.appendChild(contactBlock(deck, null));                       // primary
+  deckContacts(deck).forEach(c => card.appendChild(contactBlock(deck, c)));   // additional
+  return card;
 }
 function renderLeadOverview(deck, content, sp, contact){
   const amtInput = el('input',{type:'number', min:'0', step:'100', value:(deck.amount!=null&&deck.amount!=='')?deck.amount:'', placeholder:String(dealAmount(deck)), class:'lead-amt'});
@@ -6925,10 +6995,22 @@ function openEmailModal(deck, opts){
     } catch(e){ set('Couldn’t draft a reply: ' + (e && e.message ? e.message : e)); }
     finally { suggestBtn.disabled = false; sgLabel.textContent = 'Rewrite with AI'; }
   }
+  // If the lead has more than one contact, offer a quick recipient picker (still editable for a custom address).
+  const _contactsWithEmail = allContacts(deck).filter(c => (c.email||'').trim());
+  let toField;
+  if (_contactsWithEmail.length > 1){
+    const picker = el('select',{class:'to-picker'});
+    _contactsWithEmail.forEach(c => { const nm=[c.first,c.last].filter(Boolean).join(' '); picker.appendChild(el('option',{value:c.email}, (nm ? nm + ' — ' : '') + c.email)); });
+    picker.value = toInput.value || _contactsWithEmail[0].email;
+    picker.addEventListener('change', ()=>{ toInput.value = picker.value; });
+    toField = el('div',{class:'field'}, el('label',{},'To'), el('div',{class:'to-row'}, picker, toInput));
+  } else {
+    toField = el('div',{class:'field'}, el('label',{},'To'), toInput);
+  }
   const body = el('div',{},
     el('div',{class:'modal-h'}, opts.replyTo ? ('Reply to ' + ((deck.contactFirst||'').trim() || deck.contactEmail || 'the prospect')) : 'Email the prospect'),
     el('div',{class:'modal-desc'},'Review and send it from your Gmail. Attachments are optional — your signature is added automatically.'),
-    el('div',{class:'field'}, el('label',{},'To'), toInput),
+    toField,
     el('div',{class:'field'}, el('label',{},'Subject'), subjInput),
     recNote,
     el('div',{class:'field'},
