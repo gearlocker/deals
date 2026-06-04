@@ -4347,7 +4347,9 @@ function renderLead(deck){
   // content per tab
   const content = el('div',{class:'lead-content'}); body.appendChild(content);
   if (leadTab==='timeline'){
-    const card = el('div',{class:'lead-card'}, el('div',{class:'lead-card-h'},'Activity timeline'));
+    const card = el('div',{class:'lead-card'}, el('div',{class:'lead-card-h lead-card-h-row'},
+      el('span',{},'Activity timeline'),
+      el('button',{class:'lead-viewall', type:'button', onClick:()=>openAnalysisDrawer(deck)}, deck.callGrade ? 'Call analysis →' : 'Analyze the call →')));
     const tl = el('div',{class:'lead-timeline'}); card.appendChild(tl); content.appendChild(card);
     fillTimeline(tl, deck, { expandable:true });
   } else if (leadTab==='documents'){
@@ -4381,12 +4383,6 @@ function renderLeadOverview(deck, content, sp, contact){
       infoRow('Name', contact || '—'),
       infoRow('Email', deck.contactEmail ? el('a',{href:'mailto:'+deck.contactEmail, class:'lead-link-a'}, deck.contactEmail) : '—'),
       infoRow('Phone', deck.contactPhone ? el('a',{href:'tel:'+deck.contactPhone, class:'lead-link-a'}, deck.contactPhone) : '—')
-    ),
-    el('div',{class:'lead-actions'},
-      el('button',{class:'btn sm primary', onClick:()=>openDeck(deck.id)},'Open deck'),
-      el('button',{class:'btn sm', onClick:()=>openEmailModal(deck)},'Email'),
-      el('button',{class:'btn sm', onClick:(e)=>generateProposal(deck, e.currentTarget)},'Proposal'),
-      el('button',{class:'btn sm', onClick:()=>openAnalysisDrawer(deck)}, deck.callGrade ? 'Call grade' : 'Analyze call')
     )
   );
   const ovCard = el('div',{class:'lead-card'}, el('div',{class:'lead-card-h'},'AI overview'));
