@@ -2043,6 +2043,11 @@
   .lead-comp-taskrow .lead-comp-input { flex: 1 1 auto; }
   .lead-comp-actions { display: flex; gap: 8px; margin-top: 10px; }
   .tl-note-body { font-size: 13px; color: var(--ink-2); white-space: pre-wrap; word-break: break-word; line-height: 1.55; margin-top: 8px; padding: 10px 12px; background: var(--wash, #f7f6f3); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  .lead-ai-text { font-size: 14px; color: var(--ink-2); line-height: 1.6; white-space: pre-wrap; }
+  .lead-ai-loading { display: flex; align-items: center; gap: 9px; font-size: 13.5px; color: var(--ink-4); }
+  .lead-ai-spin { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: lead-ai-spin .7s linear infinite; flex-shrink: 0; }
+  @keyframes lead-ai-spin { to { transform: rotate(360deg); } }
+  .lead-ai-err { font-size: 13px; color: var(--ink-4); line-height: 1.5; }
   .lead-docs { display: flex; flex-direction: column; gap: 10px; }
   .doc-row { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius-md); background: #fff; }
   .doc-ic { width: 42px; height: 42px; border-radius: 10px; background: var(--wash, #f4f3ef); color: var(--accent); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -2990,8 +2995,18 @@ const BELL_MINI = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" s
 function lastTouchDate(deck){
   const dates = [];
   if (deck.emailedAt) dates.push(deck.emailedAt);
+  if (deck.lastEmailAt) dates.push(deck.lastEmailAt);          // latest synced Gmail (sent or received)
+  if (deck.lastMeetingAt) dates.push(deck.lastMeetingAt);      // latest past synced meeting
   if (deck.callGrade && deck.callGrade.meetingDate) dates.push(deck.callGrade.meetingDate);
   if (deck.followup){ if (deck.followup.firstCallDate) dates.push(deck.followup.firstCallDate); if (deck.followup.startTime) dates.push(deck.followup.startTime); }
+  // logged notes / calls / emails on this lead
+  (Array.isArray(deck.activities) ? deck.activities : []).forEach(a => { if (a && a.date) dates.push(a.date); });
+  // synced Gmail + past calendar meetings cached this session (covers received email the user hasn't logged)
+  try {
+    const now = Date.now();
+    cachedEmailsFor(deck).forEach(e => { if (e.date) dates.push(e.date); });
+    cachedMeetingsFor(deck).forEach(m => { if (m.start && new Date(m.start).getTime() <= now) dates.push(m.start); });
+  } catch(e){}
   if (!dates.length) return deck.createdAt || null;
   return dates.reduce((a,b) => new Date(b).getTime() > new Date(a).getTime() ? b : a);
 }
@@ -3775,7 +3790,9 @@ function addTask(deck, text, due){ const tasks = deckTasks(deck).slice(); tasks.
 function toggleTask(deck, id){ const tasks = deckTasks(deck).map(t => t.id===id ? Object.assign({}, t, { done:!t.done, doneAt: !t.done ? new Date().toISOString() : null }) : t); return saveDeckPatch(deck, { tasks }); }
 function deleteTask(deck, id){ return saveDeckPatch(deck, { tasks: deckTasks(deck).filter(t=>t.id!==id) }); }
 function deckActivities(deck){ return Array.isArray(deck.activities) ? deck.activities : []; }
-function addNote(deck, text){ const activities = deckActivities(deck).slice(); activities.push({ id:uid('n_'), type:'note', date:new Date().toISOString(), text:text, by:(AUTH&&AUTH.name)||'' }); return saveDeckPatch(deck, { activities }); }
+function addActivity(deck, type, text){ const activities = deckActivities(deck).slice(); activities.push({ id:uid('a_'), type:type, date:new Date().toISOString(), text:text, by:(AUTH&&AUTH.name)||'' }); return saveDeckPatch(deck, { activities }); }
+function addNote(deck, text){ return addActivity(deck, 'note', text); }
+function addCall(deck, text){ return addActivity(deck, 'call', text); }
 function infoRow(k, v){ return el('div',{class:'lead-info-row'}, el('span',{class:'lead-info-k'}, k), el('span',{class:'lead-info-v'}, v)); }
 function leadTimeline(deck, meetings, emails){
   const ev = [];
@@ -3788,7 +3805,11 @@ function leadTimeline(deck, meetings, emails){
     if (t.createdAt) ev.push({ date:t.createdAt, icon:TL_ICON.check, title:'Task created', sub:t.text });
     if (t.done && t.doneAt) ev.push({ date:t.doneAt, icon:TL_ICON.check, title:'Task completed', sub:t.text });
   });
-  deckActivities(deck).forEach(a => { if (a.type==='note') ev.push({ date:a.date, icon:TL_ICON.note, title:'Note' + (a.by?(' · '+String(a.by).split(/\s+/)[0]):''), note:a.text }); });
+  deckActivities(deck).forEach(a => {
+    const who = a.by ? (' · ' + String(a.by).split(/\s+/)[0]) : '';
+    if (a.type==='note') ev.push({ date:a.date, icon:TL_ICON.note, title:'Note' + who, note:a.text });
+    else if (a.type==='call') ev.push({ date:a.date, icon:TL_ICON.phone, title:'Call logged' + who, note:a.text });
+  });
   (meetings||[]).forEach(m => ev.push({ date:m.start, icon:TL_ICON.cal, title: m.title || 'Meeting', sub:'Calendar' }));
   (emails||[]).forEach(m => ev.push({ date:m.date, icon:TL_ICON.mail, title: m.subject || '(no subject)', sub: (m.sent ? 'You → ' + (deck.contactFirst||'contact') : (deck.contactFirst||'Contact') + ' → you') + '  ·  Gmail', email:true, emailId:m.id, snippet:m.snippet }));
   ev.sort((a,b)=> new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -3998,6 +4019,20 @@ async function syncGoogleActivity(opts){
     GACTIVITY.byEmail=byEmail; GACTIVITY.meetingsByEmail=meetingsByEmail; GACTIVITY.syncedAt=new Date().toISOString();
     GACTIVITY.counts={ emails:Object.values(byEmail).reduce((a,v)=>a+v.length,0), meetings:Object.values(meetingsByEmail).reduce((a,v)=>a+v.length,0), contacts:new Set([...Object.keys(byEmail),...Object.keys(meetingsByEmail)]).size };
     saveGActivity();
+    // Persist the latest email + past-meeting date onto each matched deck so last-touch / nudges
+    // (and the server-side daily digest) reflect synced Gmail + calendar, not just tool actions.
+    const nowMs = Date.now();
+    getDecks().forEach(d => {
+      const ce = (d.contactEmail||'').toLowerCase().trim(); if (!ce) return;
+      const em = byEmail[ce]||[], mt = meetingsByEmail[ce]||[];
+      const lastEmail = em.length ? em[0].date : null;   // sorted desc
+      const pastMt = mt.filter(m => m.start && new Date(m.start).getTime() <= nowMs);
+      const lastMeeting = pastMt.length ? pastMt[0].start : null;
+      const patch = {};
+      if (lastEmail && lastEmail !== d.lastEmailAt) patch.lastEmailAt = lastEmail;
+      if (lastMeeting && lastMeeting !== d.lastMeetingAt) patch.lastMeetingAt = lastMeeting;
+      if (Object.keys(patch).length) saveDeckPatch(d, patch);
+    });
     return scopeMissing ? { scopeMissing:true, counts:GACTIVITY.counts } : { ok:true, counts:GACTIVITY.counts };
   } finally { GACTIVITY.syncing=false; }
 }
@@ -4012,7 +4047,9 @@ function maybeAutoSync(){
   const stale = !GACTIVITY.syncedAt || (Date.now() - new Date(GACTIVITY.syncedAt).getTime() > 15*60*1000);
   if (!stale || GACTIVITY.syncing) return;
   syncGoogleActivity().then(r => {
-    if (r && r.ok && state.view==='lead'){ const d=getDecks().find(x=>x.id===state.leadId); if (d) renderLead(d); }
+    if (!r || !r.ok) return;
+    if (state.view==='lead'){ const d=getDecks().find(x=>x.id===state.leadId); if (d) renderLead(d); }
+    else if (state.section && SECTION_PAGE[state.section]) showSection(state.section);   // refresh nudges/leads with synced touches
   }).catch(()=>{});
 }
 function suggestForLead(deck, box, statusEl){
@@ -4081,10 +4118,12 @@ function renderLead(deck){
     el('div',{class:'lead-head-right'}, el('span',{class:'stage-chip stage-' + dealStage(deck)}, stageMeta(dealStage(deck)).short), stageSel)
   ));
   // quick actions (log to timeline)
+  const compToggle = m => { state.leadComposer = state.leadComposer===m ? null : m; renderLead(deck); };
   body.appendChild(el('div',{class:'lead-actionbar'},
-    el('button',{class:'lead-action-btn', type:'button', onClick:()=>{ state.leadComposer=null; openEmailModal(deck); }}, el('span',{class:'lead-action-ic', html:TL_ICON.mail}), 'Email'),
-    el('button',{class:'lead-action-btn'+(state.leadComposer==='task'?' active':''), type:'button', onClick:()=>{ state.leadComposer = state.leadComposer==='task'?null:'task'; renderLead(deck); }}, el('span',{class:'lead-action-ic', html:TL_ICON.check}), 'Task'),
-    el('button',{class:'lead-action-btn'+(state.leadComposer==='note'?' active':''), type:'button', onClick:()=>{ state.leadComposer = state.leadComposer==='note'?null:'note'; renderLead(deck); }}, el('span',{class:'lead-action-ic', html:TL_ICON.note}), 'Note')
+    el('button',{class:'lead-action-btn', type:'button', onClick:()=>{ state.leadComposer=null; openEmailModal(deck, {attach:false}); }}, el('span',{class:'lead-action-ic', html:TL_ICON.mail}), 'Email'),
+    el('button',{class:'lead-action-btn'+(state.leadComposer==='call'?' active':''), type:'button', onClick:()=>compToggle('call')}, el('span',{class:'lead-action-ic', html:TL_ICON.phone}), 'Log call'),
+    el('button',{class:'lead-action-btn'+(state.leadComposer==='task'?' active':''), type:'button', onClick:()=>compToggle('task')}, el('span',{class:'lead-action-ic', html:TL_ICON.check}), 'Task'),
+    el('button',{class:'lead-action-btn'+(state.leadComposer==='note'?' active':''), type:'button', onClick:()=>compToggle('note')}, el('span',{class:'lead-action-ic', html:TL_ICON.note}), 'Note')
   ));
   const comp = leadComposer(deck); if (comp) body.appendChild(comp);
   // sub-tabs
@@ -4137,16 +4176,79 @@ function renderLeadOverview(deck, content, sp, contact){
       el('button',{class:'btn sm', onClick:()=>openAnalysisDrawer(deck)}, deck.callGrade ? 'Call grade' : 'Analyze call')
     )
   );
-  const recBox = el('div',{class:'lead-card'});
-  recBox.appendChild(el('div',{class:'lead-card-h'},'AI recommended next step'));
-  const recStatus = el('div',{class:'email-status'},'');
-  recBox.appendChild(el('div',{class:'lead-rec-body'}, el('button',{class:'btn sm', type:'button', onClick:()=>suggestForLead(deck, recBox, recStatus)}, '✨ Suggest next step'), recStatus));
+  const ovCard = el('div',{class:'lead-card'}, el('div',{class:'lead-card-h'},'AI overview'));
+  const ovBody = el('div',{class:'lead-ai-body'}); ovCard.appendChild(ovBody);
+  const nxCard = el('div',{class:'lead-card'}, el('div',{class:'lead-card-h'},'AI recommended next step'));
+  const nxBody = el('div',{class:'lead-ai-body'}); nxCard.appendChild(nxBody);
+  paintLeadAI(deck, ovBody, nxBody);
   const actCard = el('div',{class:'lead-card'},
     el('div',{class:'lead-card-h lead-card-h-row'}, el('span',{},'Recent activity'),
       el('button',{class:'lead-viewall', type:'button', onClick:()=>{ state.leadTab='timeline'; renderLead(deck); }},'View full timeline →')));
   const mini = el('div',{class:'lead-timeline mini'}); actCard.appendChild(mini);
   fillTimeline(mini, deck, { limit:5, expandable:false });
-  content.appendChild(el('div',{class:'lead-grid'}, left, el('div',{class:'lead-right'}, recBox, actCard)));
+  content.appendChild(el('div',{class:'lead-grid'}, left, el('div',{class:'lead-right'}, ovCard, nxCard, actCard)));
+}
+const AI_SIG_V = 'ai2';   // bump when the AI prompt/output shape changes to invalidate cached overviews
+function leadAISig(deck){
+  const acts = deckActivities(deck), tasks = deckTasks(deck);
+  const em = cachedEmailsFor(deck), mt = cachedMeetingsFor(deck);
+  return [ AI_SIG_V, dealStage(deck), deck.emailedAt||'', deck.callGrade?(deck.callGrade.analyzedAt||deck.callGrade.meetingDate||'y'):'',
+    acts.length, acts.length?acts[acts.length-1].date:'', tasks.length, tasks.filter(t=>t.done).length,
+    em.length, mt.length, (deck.followup&&deck.followup.startTime)||'' ].join('|');
+}
+function buildLeadAIPayload(deck){
+  const g = deck.callGrade || {};
+  const sp = getTeam().find(p=>p.id===deck.salespersonId);
+  return {
+    school: deck.school, contactName: [deck.contactFirst,deck.contactLast].filter(Boolean).join(' '), contactFirst: deck.contactFirst||'',
+    rep: sp?{name:sp.name}:null, stage: stageMeta(dealStage(deck)).label, amount: dealAmount(deck)?('$'+dealAmount(deck).toLocaleString()):'',
+    source: deck.leadSource||'', createdAt: deck.createdAt||'', daysQuiet: daysQuiet(deck), lastTouch: lastTouchDate(deck),
+    followup: deck.followup?{scheduled:deck.followup.scheduled,startTime:deck.followup.startTime}:null, emailed: !!deck.emailedAt,
+    callSummary: g.summary||'', callHeadline: g.headline||'', callImprovements: g.improvements||[], grade: g.grade||'',
+    notes: deckActivities(deck).filter(a=>a.type==='note').map(a=>({date:a.date, text:a.text})),
+    tasks: deckTasks(deck).map(t=>({text:t.text, due:t.due, done:!!t.done})),
+    emails: cachedEmailsFor(deck).slice(0,15).map(e=>({date:e.date, dir:e.sent?'sent':'received', subject:e.subject})),
+    meetings: cachedMeetingsFor(deck).slice(0,12).map(m=>({date:m.start, title:m.title}))
+  };
+}
+async function generateLeadAI(deck){
+  const r = await fetch(SUPABASE_URL + '/functions/v1/recommend-action', {
+    method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + SUPABASE_ANON_KEY, 'apikey': SUPABASE_ANON_KEY },
+    body: JSON.stringify(buildLeadAIPayload(deck))
+  });
+  const data = await r.json().catch(()=>({error:'Unexpected response.'}));
+  if (!r.ok) throw new Error(data.error || ('Error ' + r.status));
+  return data;
+}
+function aiLoading(msg){ return el('div',{class:'lead-ai-loading'}, el('span',{class:'lead-ai-spin'}), el('span',{}, msg||'Reading the account…')); }
+const AI_CACHE = {};   // session cache: { 'deckId|sig': {overview, recommendation, ...} }
+function paintLeadAI(deck, ovBody, nxBody){
+  const cur = DB.decks.find(d=>d.id===deck.id) || deck;
+  const sig = leadAISig(cur);
+  const key = cur.id + '|' + sig;
+  const cached = AI_CACHE[key];
+  if (cached){
+    ovBody.innerHTML=''; ovBody.appendChild(el('div',{class:'lead-ai-text'}, cached.overview || 'No overview yet.'));
+    nxBody.innerHTML=''; nxBody.appendChild(el('div',{class:'lead-ai-text'}, cached.recommendation || '—'));
+    nxBody.appendChild(el('button',{class:'btn sm', style:'margin-top:14px', type:'button', onClick:()=>openEmailModal(cur, {attach:false})}, 'Draft email →'));
+    return;
+  }
+  ovBody.innerHTML=''; ovBody.appendChild(aiLoading('Reading the account…'));
+  nxBody.innerHTML=''; nxBody.appendChild(aiLoading('Working out the next step…'));
+  if (!SUPABASE_URL){ ovBody.innerHTML=''; ovBody.appendChild(el('div',{class:'lead-ai-err'},'Cloud isn’t configured.')); nxBody.innerHTML=''; return; }
+  if (AI_CACHE['_busy_'+key]) return;
+  AI_CACHE['_busy_'+key] = true;
+  generateLeadAI(cur).then(data => {
+    delete AI_CACHE['_busy_'+key];
+    AI_CACHE[key] = { overview:data.overview||'', recommendation:data.recommendation||'', emailSubject:data.emailSubject||'', emailBody:data.emailBody||'' };
+    if (state.view==='lead' && state.leadId===cur.id && (state.leadTab||'overview')==='overview') renderLead(cur);
+  }).catch(e => {
+    delete AI_CACHE['_busy_'+key];
+    if (state.view==='lead' && state.leadId===cur.id){
+      ovBody.innerHTML=''; ovBody.appendChild(el('div',{class:'lead-ai-err'}, 'Couldn’t generate — ' + (e&&e.message?e.message:e)));
+      nxBody.innerHTML='';
+    }
+  });
 }
 function docRow(o){
   const actions = el('div',{class:'doc-actions'}, ...o.actions.map(a =>
@@ -4195,6 +4297,14 @@ function leadComposer(deck){
     wrap.appendChild(ta);
     wrap.appendChild(el('div',{class:'lead-comp-actions'},
       el('button',{class:'btn sm primary', type:'button', onClick:save},'Save note'),
+      el('button',{class:'btn ghost sm', type:'button', onClick:cancel},'Cancel')));
+    setTimeout(()=>ta.focus(), 0);
+  } else if (mode==='call'){
+    const ta = el('textarea',{class:'lead-comp-input', rows:'3', placeholder:'Log the call — what was discussed, outcome, next steps…'});
+    const save = ()=>{ const v=ta.value.trim(); if(!v) return; addCall(deck, v); state.leadComposer=null; renderLead(deck); };
+    wrap.appendChild(ta);
+    wrap.appendChild(el('div',{class:'lead-comp-actions'},
+      el('button',{class:'btn sm primary', type:'button', onClick:save},'Log call'),
       el('button',{class:'btn ghost sm', type:'button', onClick:cancel},'Cancel')));
     setTimeout(()=>ta.focus(), 0);
   } else if (mode==='task'){
@@ -5138,6 +5248,12 @@ function bootAuth(){
     });
   }
 }
+function plainEmailBody(deck, sp){
+  const first = (deck.contactFirst || '').trim();
+  const repFirst = sp ? String(sp.name).trim().split(/\s+/)[0] : '';
+  const greeting = first ? ('Hi ' + first + ',') : 'Hi,';
+  return greeting + '\n\n\n\n' + (repFirst || 'Thanks');
+}
 function defaultEmailBody(deck, sp){
   const first = (deck.contactFirst || '').trim();
   const repFirst = sp ? String(sp.name).trim().split(/\s+/)[0] : '';
@@ -5200,12 +5316,14 @@ function openEmailPreview(opts){
   frame.setAttribute('srcdoc',
     '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><style>body{margin:0;padding:24px;background:#fff;color:#1E1715}</style></head><body>' + opts.html + '</body></html>');
 }
-function openEmailModal(deck){
+function openEmailModal(deck, opts){
+  opts = opts || {};
+  const attach = opts.attach !== false;   // default: attach deck + proposal; pass {attach:false} for a plain email
   closeModal();
   const sp = getTeam().find(p => p.id === deck.salespersonId) || null;
   const toInput = el('input',{type:'email', value: deck.contactEmail || '', placeholder:'contact@school.org'});
   const subjInput = el('input',{type:'text', value: 'GearLocker for ' + deck.school});
-  const bodyArea = el('textarea',{class:'email-body', rows:'13'}, defaultEmailBody(deck, sp));
+  const bodyArea = el('textarea',{class:'email-body', rows:'13'}, attach ? defaultEmailBody(deck, sp) : plainEmailBody(deck, sp));
   const status = el('div',{class:'email-status'}, '');
   const sendBtn = el('button',{class:'btn primary'}, 'Send email');
   const set = t => { status.textContent = t; };
@@ -5216,38 +5334,43 @@ function openEmailModal(deck){
     try {
       set('Connecting to Google…');
       const token = await getGoogleAccessToken();
-      const prev = { d: state.d, lossPct: state.lossPct };
-      state.d = { leadName: deck.school, enrollment: deck.enrollment || '', sports: (deck.sports||[]).slice(),
-        checksTech: deck.checksTech != null ? deck.checksTech : null, sis: deck.sis || '', salesperson: sp };
-      state.lossPct = deck.lossPct != null ? deck.lossPct : 10;
-      let deckPdf, propPdf;
-      try {
-        set('Building the deck PDF…');
-        deckPdf = await composeSlidesPdf(set);
-      } finally { state.d = prev.d; state.lossPct = prev.lossPct; }
-      set('Building the proposal PDF…');
-      propPdf = await composeProposalPdf(deck, set);
-      const deckB64 = deckPdf.output('datauristring').split('base64,')[1];
-      const propB64 = propPdf.output('datauristring').split('base64,')[1];
+      let attachments = [];
+      if (attach){
+        const prev = { d: state.d, lossPct: state.lossPct };
+        state.d = { leadName: deck.school, enrollment: deck.enrollment || '', sports: (deck.sports||[]).slice(),
+          checksTech: deck.checksTech != null ? deck.checksTech : null, sis: deck.sis || '', salesperson: sp };
+        state.lossPct = deck.lossPct != null ? deck.lossPct : 10;
+        let deckPdf, propPdf;
+        try {
+          set('Building the deck PDF…');
+          deckPdf = await composeSlidesPdf(set);
+        } finally { state.d = prev.d; state.lossPct = prev.lossPct; }
+        set('Building the proposal PDF…');
+        propPdf = await composeProposalPdf(deck, set);
+        const slug = deck.school.replace(/[^a-z0-9]+/gi,'-').replace(/^-|-$/g,'');
+        attachments = [
+          { filename: slug + '-presentation.pdf', base64: deckPdf.output('datauristring').split('base64,')[1] },
+          { filename: slug + '-proposal.pdf', base64: propPdf.output('datauristring').split('base64,')[1] }
+        ];
+      }
       set('Sending…');
       const html = composeEmailHtml(bodyArea.value, sp, false);
       const logoB64 = (LOGO_DATA.split('base64,')[1] || '');
-      const slug = deck.school.replace(/[^a-z0-9]+/gi,'-').replace(/^-|-$/g,'');
       const mime = buildMime({ to: to, subject: subjInput.value.trim() || ('GearLocker for ' + deck.school), html: html,
         inlineImages: [ { cid: 'gllogo', base64: logoB64, mime: 'image/png', filename: 'gearlocker.png' } ],
-        attachments: [
-          { filename: slug + '-presentation.pdf', base64: deckB64 },
-          { filename: slug + '-proposal.pdf', base64: propB64 }
-        ]});
+        attachments: attachments });
       const raw = btoa(mime).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
       const r = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
         method:'POST', headers:{ Authorization:'Bearer ' + token, 'Content-Type':'application/json' }, body: JSON.stringify({ raw: raw })
       });
       if (!r.ok) throw new Error('Gmail ' + r.status + ': ' + (await r.text()));
       const cur = DB.decks.find(d => d.id === deck.id) || deck;
-      upsertDeck(Object.assign({}, cur, { emailedAt: new Date().toISOString(), contactEmail: to, updatedAt: new Date().toISOString() }));
+      const now = new Date().toISOString();
+      const patch = { contactEmail: to, lastEmailAt: now, updatedAt: now };
+      if (attach) patch.emailedAt = now;   // only the deck+proposal send marks the "deck sent" milestone
+      upsertDeck(Object.assign({}, cur, patch));
       closeModal();
-      renderDashboard();
+      if (state.view==='lead' && state.leadId===cur.id) renderLead(cur); else renderDashboard();
     } catch (e) {
       console.error('email failed', e);
       sendBtn.disabled = false;
