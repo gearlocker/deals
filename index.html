@@ -7365,6 +7365,7 @@ function weeklyReportData(offset){
       label: fmtDayShort(r.start),
       leads: decks.filter(d => inRange(d.createdAt, r)).length,
       demos: decks.filter(d => inRange(demoDate(d), r)).length,
+      commits: decks.filter(d => inRange(committedDate(d), r)).length,
       wonAmt: wonW.reduce((a,d)=>a+dealAmount(d),0),
       wonCount: wonW.length,
       pipe: decks.filter(d => inRange(d.createdAt, r)).reduce((a,d)=>a+dealAmount(d),0)
@@ -7578,8 +7579,8 @@ function buildReportSlides(data){
     el('div',{class:'tb-grid'},
       trendCard('New leads', mk('leads'), {}),
       trendCard('Demos completed', mk('demos'), {}),
-      trendCard('Revenue won', mk('wonAmt'), {fmt:fmtMoneyK}),
-      trendCard('Pipeline created', mk('pipe'), {fmt:fmtMoneyK})));
+      trendCard('New verbal commits', mk('commits'), {}),
+      trendCard('Revenue won', mk('wonAmt'), {fmt:fmtMoneyK})));
 
   // ----- Slide 2: This week at a glance -----
   slides.push(rsSlide({ eyebrow:'Performance', title:'This week at a glance' },
