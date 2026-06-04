@@ -4496,27 +4496,35 @@ function briefingCandidates(){
     if (!score) return;
     out.push({ deck:d, inbound, tasksDue, fuToday, nudge, score });
   });
-  return out.sort((a,b)=>b.score-a.score).slice(0, 25);
+  return out.sort((a,b)=>b.score-a.score).slice(0, 18);
 }
-function briefingKey(){ return 'gl_briefing_v2_' + String((AUTH&&AUTH.email)||'').toLowerCase() + '_' + new Date().toISOString().slice(0,10); }
+function briefingKey(){ return 'gl_briefing_v3_' + String((AUTH&&AUTH.email)||'').toLowerCase() + '_' + new Date().toISOString().slice(0,10); }
 async function generateBriefing(cands){
   const rep = currentRep();
   const payload = {
     rep: rep ? { name: rep.name } : (AUTH ? { name: AUTH.name } : null),
     today: new Date().toISOString().slice(0,10),
-    candidates: cands.map(c => ({
-      id: c.deck.id, school: c.deck.school,
-      contact: [c.deck.contactFirst, c.deck.contactLast].filter(Boolean).join(' '),
-      stage: stageMeta(dealStage(c.deck)).label,
-      amount: dealAmount(c.deck) ? ('$' + dealAmount(c.deck).toLocaleString()) : '',
-      daysQuiet: daysQuiet(c.deck),
-      hasReply: !!c.inbound, replySnippet: c.inbound ? (c.inbound.snippet || c.inbound.subject || '') : '',
-      tasksDue: c.tasksDue.map(t => t.text), followupToday: c.fuToday,
-      lastGrade: (c.deck.callGrade && c.deck.callGrade.grade) || '',
-      emailed: c.deck.emailedAt ? String(c.deck.emailedAt).slice(0,10) : '',
-      recentEmails: cachedEmailsFor(c.deck).slice(0,6).map(e => ({ date:String(e.date).slice(0,10), dir:e.sent?'sent':'received', subject:e.subject||'' })),
-      notes: deckActivities(c.deck).filter(a => a.type==='note' || a.type==='call').slice(-3).map(a => ({ date:String(a.date).slice(0,10), type:a.type, text:String(a.text||'').slice(0,160) })),
-      nextStep: (c.deck.ai && c.deck.ai.recommendation) || ''
+    candidates: await Promise.all(cands.map(async c => {
+      const ems = cachedEmailsFor(c.deck);
+      const latest = ems[0];
+      let latestBody = '';
+      if (latest && latest.id) latestBody = await fetchEmailBody(latest.id).catch(()=>'');   // the body driving the signal
+      return {
+        id: c.deck.id, school: c.deck.school,
+        contact: [c.deck.contactFirst, c.deck.contactLast].filter(Boolean).join(' '),
+        stage: stageMeta(dealStage(c.deck)).label,
+        amount: dealAmount(c.deck) ? ('$' + dealAmount(c.deck).toLocaleString()) : '',
+        daysQuiet: daysQuiet(c.deck),
+        hasReply: !!c.inbound,
+        lastEmail: latest ? { date:String(latest.date).slice(0,10), dir:latest.sent?'sent':'received', subject:latest.subject||'' } : null,
+        lastEmailBody: String(latestBody || (latest && latest.snippet) || '').slice(0, 1600),
+        tasksDue: c.tasksDue.map(t => t.text), followupToday: c.fuToday,
+        lastGrade: (c.deck.callGrade && c.deck.callGrade.grade) || '',
+        emailed: c.deck.emailedAt ? String(c.deck.emailedAt).slice(0,10) : '',
+        recentEmails: ems.slice(0,6).map(e => ({ date:String(e.date).slice(0,10), dir:e.sent?'sent':'received', subject:e.subject||'' })),
+        notes: deckActivities(c.deck).filter(a => a.type==='note' || a.type==='call').slice(-3).map(a => ({ date:String(a.date).slice(0,10), type:a.type, text:String(a.text||'').slice(0,160) })),
+        nextStep: (c.deck.ai && c.deck.ai.recommendation) || ''
+      };
     }))
   };
   const r = await fetch(SUPABASE_URL + '/functions/v1/daily-briefing', {
