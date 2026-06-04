@@ -1997,6 +1997,38 @@
   .pb-x { background: none; border: none; color: var(--ink-4); cursor: pointer; font-size: 14px; padding: 4px 6px; flex-shrink: 0; }
   .pb-x:hover { color: var(--accent); }
   .pb-empty { font-size: 12.5px; color: var(--ink-4); padding: 2px 0; }
+  /* Sequence card on the lead view */
+  .seq-card .seq-enroll { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .seq-select, .seq-step-type { font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--paper); color: var(--ink); }
+  .seq-select { flex: 1 1 auto; min-width: 0; }
+  .seq-hint, .seq-empty { font-size: 12px; }
+  .seq-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+  .seq-name { font-size: 13.5px; font-weight: 700; color: var(--ink); }
+  .seq-badge { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
+  .seq-badge.active { background: rgba(26,86,176,.12); color: #1a56b0; }
+  .seq-badge.due { background: rgba(238,54,47,.12); color: var(--accent); }
+  .seq-badge.replied { background: rgba(31,157,85,.14); color: #1f7d45; }
+  .seq-badge.paused { background: var(--wash); color: var(--ink-4); }
+  .seq-badge.done { background: var(--wash); color: var(--ink-3); }
+  .seq-prog { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .seq-prog-bar { flex: 1 1 auto; height: 6px; border-radius: 3px; background: var(--wash); overflow: hidden; }
+  .seq-prog-fill { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+  .seq-prog-txt { font-size: 11.5px; color: var(--ink-4); font-weight: 600; white-space: nowrap; }
+  .seq-status { font-size: 12.5px; color: var(--ink-3); margin-bottom: 10px; }
+  .seq-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  .seq-actions .danger:hover { color: var(--accent); }
+  /* Sequence editor in Settings */
+  .seq-editor { display: flex; flex-direction: column; gap: 14px; }
+  .seq-edit-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .seq-name-input { flex: 1 1 auto; min-width: 0; font: inherit; font-size: 14px; font-weight: 700; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  .seq-name-input:focus, .seq-subj:focus, .seq-body-input:focus, .seq-step-type:focus { outline: none; border-color: var(--accent); }
+  .seq-steps { display: flex; flex-direction: column; gap: 10px; }
+  .seq-step { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; background: var(--wash); display: flex; flex-direction: column; gap: 8px; }
+  .seq-step-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .seq-step-num { width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .seq-subj { width: 100%; font: inherit; font-size: 13.5px; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--paper); }
+  .seq-body-input { width: 100%; font: inherit; font-size: 13px; line-height: 1.5; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--paper); resize: vertical; }
+  .seq-step-add { display: flex; gap: 8px; margin-top: 10px; }
   .lead-task.done .lead-task-cb { color: var(--ink-4); text-decoration: line-through; }
   .lead-task-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
   .lead-task-due { font-size: 12px; color: var(--ink-4); font-weight: 600; }
@@ -2066,6 +2098,14 @@
   .today-summary { margin: 22px 0 20px; }
   .today-sum-text { font-size: 16px; line-height: 1.55; color: var(--ink); font-weight: 500; max-width: 760px; }
   .today-empty { font-size: 14.5px; color: var(--ink-3); line-height: 1.5; }
+  .today-seq { margin: 0 0 22px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--paper); overflow: hidden; }
+  .today-seq-h { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-4); padding: 12px 16px 4px; }
+  .today-seq-row { display: flex; align-items: center; gap: 12px; padding: 11px 16px; border-top: 1px solid var(--border); }
+  .today-seq-ic { color: var(--accent); flex-shrink: 0; display: inline-flex; }
+  .today-seq-body { flex: 1 1 auto; min-width: 0; }
+  .today-seq-top { font-size: 14px; }
+  .today-seq-sub { color: var(--ink-3); }
+  .today-seq-meta { font-size: 12px; color: var(--ink-4); margin-top: 2px; }
   .today-list { display: flex; flex-direction: column; gap: 10px; }
   .today-card { display: flex; align-items: flex-start; gap: 16px; padding: 16px 18px; background: var(--paper); border: 1px solid var(--border); border-radius: var(--radius-md); }
   .today-rank { width: 26px; height: 26px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
@@ -2990,6 +3030,82 @@ function savePlaybooks(stages){
   saveJSON(PLAYBOOKS_KEY, playbooksConfig());
   if (cloudOn()) sbUpsert('settings', 'playbooks', playbooksConfig()).catch(e => console.warn('playbooks sync failed', e));
 }
+
+/* ---- Email sequences / cadences (Settings → Sequences) — reusable multi-touch outreach ---- */
+const SEQUENCES_KEY = 'gl_sequences_v1';
+const DEFAULT_SEQUENCES = [{
+  id: 'seq_cold', name: 'Cold outreach — 4 touch',
+  steps: [
+    { type:'email', delayDays:0, subject:'{{school}}’s gear on spreadsheets?', body:'Hi {{first}},\n\nQuick one — how is {{school}} tracking athletic gear right now? Most ADs I talk to are on spreadsheets and a few coaches’ memories, then rebuy jerseys and pads every spring that walked off the year before.\n\nGearLocker puts every uniform, helmet, and ball on one screen. Coaches check gear in and out from their phones, parents get an automatic note with the replacement cost, and you see every program in one place. Built by a high school coach, no hardware, live in under 30 days.\n\nWorth 15 minutes to see what your gear would look like on one screen?\n\n{{rep}}' },
+    { type:'email', delayDays:3, subject:'Re: {{school}}’s gear', body:'Hi {{first}},\n\nFollowing up. The schools that move on this usually do it before the season ends, while they can still see what’s missing.\n\nHappy to send a short walkthrough, or grab time here: {{schedlink}}\n\n{{rep}}' },
+    { type:'task', delayDays:3, subject:'Call {{first}} at {{school}}', body:'' },
+    { type:'email', delayDays:4, subject:'Closing the loop, {{first}}', body:'Hi {{first}},\n\nI’ll stop here so I’m not cluttering your inbox. If getting {{school}}’s gear off spreadsheets is ever worth 15 minutes, just reply and I’ll set it up.\n\nThanks,\n{{rep}}' }
+  ]
+}];
+let SEQUENCES = JSON.parse(JSON.stringify(DEFAULT_SEQUENCES));
+function sequencesConfig(){ return { type:'sequences', list: SEQUENCES }; }
+function applySequences(cfg){
+  if (cfg && Array.isArray(cfg.list)) {
+    SEQUENCES = cfg.list.map(s => ({
+      id: s.id || uid('seq_'), name: String(s.name||'Sequence'),
+      steps: (Array.isArray(s.steps)?s.steps:[]).map(st => ({ type: st.type==='task'?'task':'email', delayDays: (st.delayDays===''||st.delayDays==null)?0:(Number(st.delayDays)||0), subject:String(st.subject||''), body:String(st.body||'') }))
+    }));
+  }
+}
+function saveSequences(list){
+  applySequences({ list: list });
+  saveJSON(SEQUENCES_KEY, sequencesConfig());
+  if (cloudOn()) sbUpsert('settings', 'sequences', sequencesConfig()).catch(e => console.warn('sequences sync failed', e));
+}
+function getSequence(id){ return SEQUENCES.find(s => s.id === id) || null; }
+function seqToday(){ return new Date().toISOString().slice(0,10); }
+function seqDateAdd(days){ return new Date(Date.now() + (Number(days)||0)*86400000).toISOString().slice(0,10); }
+function seqPersonalize(text, deck){
+  const sp = getTeam().find(p => p.id === deck.salespersonId);
+  const repFirst = sp ? String(sp.name).trim().split(/\s+/)[0] : '';
+  return String(text||'')
+    .replace(/\{\{\s*first\s*\}\}/gi, (deck.contactFirst||'there').trim())
+    .replace(/\{\{\s*school\s*\}\}/gi, deck.school||'your school')
+    .replace(/\{\{\s*rep\s*\}\}/gi, repFirst || '')
+    .replace(/\{\{\s*schedlink\s*\}\}/gi, (sp && sp.hubspot) ? sp.hubspot : '');
+}
+// Enroll a deck into a sequence (first step due after its delay).
+function enrollSequence(deck, seqId){
+  const seq = getSequence(seqId); if (!seq || !seq.steps.length) return;
+  saveDeckPatch(deck, { sequence: { seqId: seqId, enrolledAt: new Date().toISOString(), step: 0, status: 'active', nextDue: seqDateAdd(seq.steps[0].delayDays), log: [] },
+    history: pushHist((DB.decks.find(x=>x.id===deck.id)||deck).history, 'sequence', 'Enrolled in “' + seq.name + '”') });
+}
+function unenrollSequence(deck){ saveDeckPatch(deck, { sequence: null }); }
+function pauseSequence(deck, paused){ const cur = DB.decks.find(x=>x.id===deck.id)||deck; if (!cur.sequence) return; saveDeckPatch(deck, { sequence: Object.assign({}, cur.sequence, { status: paused ? 'paused' : 'active' }) }); }
+// Mark the current step complete and schedule the next.
+function seqAdvance(deck){
+  const cur = DB.decks.find(x=>x.id===deck.id) || deck;
+  const enr = cur.sequence; if (!enr) return;
+  const seq = getSequence(enr.seqId); if (!seq) return;
+  const log = (enr.log||[]).concat([{ step: enr.step, type: (seq.steps[enr.step]||{}).type, at: new Date().toISOString() }]);
+  const next = enr.step + 1;
+  let updated;
+  if (next >= seq.steps.length) updated = Object.assign({}, enr, { step: next, status: 'done', nextDue: null, log });
+  else updated = Object.assign({}, enr, { step: next, nextDue: seqDateAdd(seq.steps[next].delayDays), log });
+  saveDeckPatch(deck, { sequence: updated });
+}
+// Read-only sequence state for a deck (reply-pause computed on the fly).
+function seqState(deck){
+  const enr = deck.sequence; if (!enr) return null;
+  const seq = getSequence(enr.seqId); if (!seq) return { enr, missing:true };
+  const total = seq.steps.length;
+  const base = { seq, enr, total, stepNum: Math.min(enr.step, total) };
+  if (enr.status === 'done') return Object.assign(base, { done:true });
+  if (enr.status === 'paused') return Object.assign(base, { paused:true });
+  const repliedAfter = (typeof cachedEmailsFor==='function') && cachedEmailsFor(deck).some(e => !e.sent && enr.enrolledAt && new Date(e.date).getTime() > new Date(enr.enrolledAt).getTime());
+  if (repliedAfter) return Object.assign(base, { replied:true });
+  const due = (enr.nextDue && enr.nextDue <= seqToday() && seq.steps[enr.step]) ? { index: enr.step, step: seq.steps[enr.step] } : null;
+  return Object.assign(base, { due, active:true });
+}
+// All decks with a sequence step due right now (for the work queue).
+function sequencesDue(){
+  return getDecks().filter(isOpenDeal).map(d => { const s = seqState(d); return (s && s.due) ? { deck:d, state:s } : null; }).filter(Boolean);
+}
 function isRealSis(sis) { return sis && sis !== 'Other / Not sure'; }
 function fmtPayback(year1, totalReturn) {
   if (!totalReturn || totalReturn <= 0) return '—';
@@ -3103,6 +3219,7 @@ applyPricing(loadJSON(PRICING_KEY, null));   // restore saved pricing (cloud cop
 applyRubric(loadJSON(RUBRIC_KEY, null));     // restore saved grading rubric
 applyAutomation(loadJSON(AUTOMATION_KEY, null));   // restore automation toggles
 applyPlaybooks(loadJSON(PLAYBOOKS_KEY, null));      // restore stage playbooks (cloud copy loads in refreshFromCloud)
+applySequences(loadJSON(SEQUENCES_KEY, null));      // restore email sequences (cloud copy loads in refreshFromCloud)
 function getDecks(){ return DB.decks; }
 function getTeam(){ return DB.team; }
 function persistDecks(){ saveJSON(DECKS_KEY, DB.decks); }
@@ -3157,6 +3274,8 @@ async function refreshFromCloud(){
   if (automation){ applyAutomation(automation); saveJSON(AUTOMATION_KEY, automationConfig()); }
   const playbooks = (settings || []).find(s => s && s.type === 'playbooks');
   if (playbooks){ applyPlaybooks(playbooks); saveJSON(PLAYBOOKS_KEY, playbooksConfig()); }
+  const sequences = (settings || []).find(s => s && s.type === 'sequences');
+  if (sequences){ applySequences(sequences); saveJSON(SEQUENCES_KEY, sequencesConfig()); }
 }
 const uid = (p) => p + Math.random().toString(36).slice(2,8) + Date.now().toString(36).slice(-4);
 const initials = (name) => ((name||'').trim().split(/\s+/).map(w=>w[0]||'').slice(0,2).join('').toUpperCase()) || '–';
@@ -3658,7 +3777,7 @@ function renderSettingsTabs(){
   const tabs = document.getElementById('settings-tabs');
   if (!tabs) return;
   tabs.innerHTML = '';
-  [['pricing','Pricing'],['rubric','Call rubric'],['team','Team'],['automation','Automation'],['playbooks','Playbooks'],['google','Google sync']].forEach(([key,label]) => {
+  [['pricing','Pricing'],['rubric','Call rubric'],['team','Team'],['automation','Automation'],['playbooks','Playbooks'],['sequences','Sequences'],['google','Google sync']].forEach(([key,label]) => {
     tabs.appendChild(el('button',{ class:'settings-tab' + (settingsTab===key?' active':''), type:'button', onClick:()=>{ settingsTab = key; renderSettingsPage(); window.scrollTo(0,0); } }, label));
   });
 }
@@ -3670,6 +3789,7 @@ function renderSettingsPage(){
   else if (settingsTab === 'team') body.appendChild(renderTeamSettings());
   else if (settingsTab === 'automation') body.appendChild(renderAutomationSettings());
   else if (settingsTab === 'playbooks') body.appendChild(renderPlaybookSettings());
+  else if (settingsTab === 'sequences') body.appendChild(renderSequenceSettings());
   else if (settingsTab === 'google') body.appendChild(renderGoogleSettings());
   else {
     body.appendChild(el('p',{class:'settings-subtitle'}, 'Update pricing here and it flows into every deck’s pricing slide and proposal. Saved for the whole team.'));
@@ -3816,6 +3936,69 @@ function renderPlaybookSettings(){
     status.textContent = 'Saved ✓'; setTimeout(()=>status.textContent='', 2500);
   };
   const reset = () => { savePlaybooks(JSON.parse(JSON.stringify(DEFAULT_PLAYBOOKS))); renderSettingsPage(); };
+  wrap.appendChild(el('div',{class:'settings-actions'},
+    el('button',{class:'btn ghost sm', type:'button', onClick:reset}, 'Reset to defaults'),
+    el('div',{style:'display:flex;align-items:center;gap:16px'}, status, el('button',{class:'btn primary', type:'button', onClick:save}, 'Save'))));
+  return wrap;
+}
+
+function renderSequenceSettings(){
+  const draft = JSON.parse(JSON.stringify(SEQUENCES));
+  const wrap = el('div',{});
+  wrap.appendChild(el('p',{class:'settings-subtitle'}, 'Build reusable multi-touch outreach cadences. Enroll a lead from its page; each step comes due on schedule, surfaces in Nudges & Tasks pre-drafted for one-click review, and the whole sequence stops automatically the moment the prospect replies. Tokens: {{first}}, {{school}}, {{rep}}, {{schedlink}}.'));
+  const status = el('span',{class:'settings-saved'}, '');
+  const bodyEl = el('div',{class:'seq-editor'});
+  const draw = () => {
+    bodyEl.innerHTML = '';
+    if (!draft.length) bodyEl.appendChild(el('div',{class:'pb-empty'}, 'No sequences yet. Add one below.'));
+    draft.forEach((seq, si) => {
+      const card = el('div',{class:'pb-card seq-edit-card'});
+      const nameI = el('input',{type:'text', class:'seq-name-input', placeholder:'Sequence name', value: seq.name || ''});
+      nameI.addEventListener('input', ()=>{ draft[si].name = nameI.value; });
+      card.appendChild(el('div',{class:'seq-edit-head'}, nameI,
+        el('button',{class:'pb-x', type:'button', title:'Delete sequence', onClick:()=>{ draft.splice(si,1); draw(); }}, '✕')));
+      const steps = el('div',{class:'seq-steps'});
+      (seq.steps||[]).forEach((st, ti) => {
+        const typeSel = el('select',{class:'seq-step-type'},
+          el('option',{value:'email', selected: st.type!=='task'},'Email'),
+          el('option',{value:'task', selected: st.type==='task'},'Task'));
+        typeSel.addEventListener('change', ()=>{ draft[si].steps[ti].type = typeSel.value; draw(); });
+        const delayI = el('input',{type:'number', class:'pb-due', min:'0', step:'1', value: (st.delayDays==null?'':st.delayDays)});
+        delayI.addEventListener('input', ()=>{ draft[si].steps[ti].delayDays = delayI.value===''?0:(Number(delayI.value)||0); });
+        const subjI = el('input',{type:'text', class:'seq-subj', placeholder: st.type==='task'?'Task description…':'Subject line…', value: st.subject || ''});
+        subjI.addEventListener('input', ()=>{ draft[si].steps[ti].subject = subjI.value; });
+        const stepRows = [ el('div',{class:'seq-step-top'},
+          el('span',{class:'seq-step-num'}, String(ti+1)),
+          typeSel,
+          el('span',{class:'pb-due-lbl'}, ti===0 ? 'send after' : 'then wait'), delayI, el('span',{class:'pb-due-lbl'},'days'),
+          el('button',{class:'pb-x', type:'button', title:'Remove step', onClick:()=>{ draft[si].steps.splice(ti,1); draw(); }}, '✕')) ,
+          subjI ];
+        if (st.type !== 'task'){
+          const bodyT = el('textarea',{class:'seq-body-input', rows:'5', placeholder:'Email body…'}, st.body || '');
+          bodyT.addEventListener('input', ()=>{ draft[si].steps[ti].body = bodyT.value; });
+          stepRows.push(bodyT);
+        }
+        steps.appendChild(el('div',{class:'seq-step'}, ...stepRows));
+      });
+      card.appendChild(steps);
+      card.appendChild(el('div',{class:'seq-step-add'},
+        el('button',{class:'btn ghost sm', type:'button', onClick:()=>{ (draft[si].steps=draft[si].steps||[]).push({ type:'email', delayDays:3, subject:'', body:'' }); draw(); }}, '+ Email step'),
+        el('button',{class:'btn ghost sm', type:'button', onClick:()=>{ (draft[si].steps=draft[si].steps||[]).push({ type:'task', delayDays:2, subject:'', body:'' }); draw(); }}, '+ Task step')));
+      bodyEl.appendChild(card);
+    });
+  };
+  draw();
+  wrap.appendChild(bodyEl);
+  wrap.appendChild(el('button',{class:'btn ghost sm', type:'button', style:'margin-top:6px', onClick:()=>{ draft.push({ id: uid('seq_'), name:'New sequence', steps:[{ type:'email', delayDays:0, subject:'', body:'' }] }); draw(); }}, '+ New sequence'));
+  const save = () => {
+    const clean = draft.map(s => ({ id: s.id || uid('seq_'), name: String(s.name||'Sequence').trim() || 'Sequence',
+      steps: (s.steps||[]).map(st => ({ type: st.type==='task'?'task':'email', delayDays: Number(st.delayDays)||0, subject:String(st.subject||'').trim(), body:String(st.body||'') })).filter(st => st.subject || st.body)
+    })).filter(s => s.steps.length);
+    saveSequences(clean);
+    status.textContent = 'Saved ✓'; setTimeout(()=>status.textContent='', 2500);
+    renderSettingsPage();
+  };
+  const reset = () => { if (confirm('Reset sequences to the default cadence?')){ saveSequences(JSON.parse(JSON.stringify(DEFAULT_SEQUENCES))); renderSettingsPage(); } };
   wrap.appendChild(el('div',{class:'settings-actions'},
     el('button',{class:'btn ghost sm', type:'button', onClick:reset}, 'Reset to defaults'),
     el('div',{style:'display:flex;align-items:center;gap:16px'}, status, el('button',{class:'btn primary', type:'button', onClick:save}, 'Save'))));
@@ -4383,7 +4566,8 @@ function renderLeadOverview(deck, content, sp, contact){
       infoRow('Name', contact || '—'),
       infoRow('Email', deck.contactEmail ? el('a',{href:'mailto:'+deck.contactEmail, class:'lead-link-a'}, deck.contactEmail) : '—'),
       infoRow('Phone', deck.contactPhone ? el('a',{href:'tel:'+deck.contactPhone, class:'lead-link-a'}, deck.contactPhone) : '—')
-    )
+    ),
+    leadSequenceCard(deck)
   );
   const ovCard = el('div',{class:'lead-card'}, el('div',{class:'lead-card-h'},'AI overview'));
   const ovBody = el('div',{class:'lead-ai-body'}); ovCard.appendChild(ovBody);
@@ -4396,6 +4580,82 @@ function renderLeadOverview(deck, content, sp, contact){
   const mini = el('div',{class:'lead-timeline mini'}); actCard.appendChild(mini);
   fillTimeline(mini, deck, { limit:5, expandable:false });
   content.appendChild(el('div',{class:'lead-grid'}, left, el('div',{class:'lead-right'}, ovCard, nxCard, actCard)));
+}
+// Sequence enrollment card for a lead (enroll / status / controls).
+function leadSequenceCard(deck){
+  const card = el('div',{class:'lead-card seq-card'}, el('div',{class:'lead-card-h'},'Sequence'));
+  const st = seqState(deck);
+  if (!st){
+    if (!SEQUENCES.length){ card.appendChild(el('div',{class:'muted seq-empty'},'No sequences yet. Create one in Settings → Sequences.')); return card; }
+    const sel = el('select',{class:'seq-select'}, ...SEQUENCES.map(s => el('option',{value:s.id}, s.name + ' · ' + s.steps.length + ' steps')));
+    const btn = el('button',{class:'btn sm primary', onClick:()=>{ enrollSequence(deck, sel.value); renderLead(DB.decks.find(x=>x.id===deck.id)||deck); }},'Enroll');
+    card.appendChild(el('div',{class:'seq-enroll'}, sel, btn));
+    card.appendChild(el('div',{class:'muted seq-hint'},'Multi-touch cadence. Auto-pauses when they reply.'));
+    return card;
+  }
+  if (st.missing){
+    card.appendChild(el('div',{class:'muted seq-empty'},'This sequence was deleted.'));
+    card.appendChild(el('button',{class:'btn sm ghost', onClick:()=>{ unenrollSequence(deck); renderLead(DB.decks.find(x=>x.id===deck.id)||deck); }},'Remove'));
+    return card;
+  }
+  const total = st.total, doneN = Math.min(st.enr.step, total);
+  let statusEl, badge;
+  if (st.done){ badge = el('span',{class:'seq-badge done'},'Completed'); statusEl = el('div',{class:'seq-status'}, 'All ' + total + ' steps finished.'); }
+  else if (st.replied){ badge = el('span',{class:'seq-badge replied'},'Paused — they replied'); statusEl = el('div',{class:'seq-status'}, 'Stopped automatically. Take it from here.'); }
+  else if (st.paused){ badge = el('span',{class:'seq-badge paused'},'Paused'); statusEl = el('div',{class:'seq-status'}, 'Resume when you’re ready.'); }
+  else if (st.due){ badge = el('span',{class:'seq-badge due'},'Step due'); statusEl = el('div',{class:'seq-status'}, seqStepLabel(st.due.step, st.due.index) + ' is ready to go.'); }
+  else { badge = el('span',{class:'seq-badge active'},'Active'); statusEl = el('div',{class:'seq-status'}, 'Next step ' + (st.enr.nextDue ? 'on ' + fmtDay(st.enr.nextDue) : 'scheduled') + '.'); }
+  card.appendChild(el('div',{class:'seq-head'}, el('span',{class:'seq-name'}, st.seq.name), badge));
+  card.appendChild(el('div',{class:'seq-prog'}, el('span',{class:'seq-prog-bar'}, el('span',{class:'seq-prog-fill', style:'width:'+Math.round(doneN/total*100)+'%'})), el('span',{class:'seq-prog-txt'}, doneN + ' / ' + total)));
+  card.appendChild(statusEl);
+  const actions = el('div',{class:'seq-actions'});
+  if (st.due){
+    if (st.due.step.type === 'email') actions.appendChild(el('button',{class:'btn sm primary', onClick:()=>runSequenceStep(deck)},'Review & send'));
+    else actions.appendChild(el('button',{class:'btn sm primary', onClick:()=>runSequenceStep(deck)},'Log step & continue'));
+    actions.appendChild(el('button',{class:'btn sm ghost', onClick:()=>{ seqAdvance(deck); renderLead(DB.decks.find(x=>x.id===deck.id)||deck); }},'Skip step'));
+  }
+  if (!st.done){
+    if (st.paused) actions.appendChild(el('button',{class:'btn sm ghost', onClick:()=>{ pauseSequence(deck, false); renderLead(DB.decks.find(x=>x.id===deck.id)||deck); }},'Resume'));
+    else if (!st.replied) actions.appendChild(el('button',{class:'btn sm ghost', onClick:()=>{ pauseSequence(deck, true); renderLead(DB.decks.find(x=>x.id===deck.id)||deck); }},'Pause'));
+  }
+  actions.appendChild(el('button',{class:'btn sm ghost danger', onClick:()=>{ if(confirm('Remove this lead from the sequence?')){ unenrollSequence(deck); renderLead(DB.decks.find(x=>x.id===deck.id)||deck); } }},'Unenroll'));
+  card.appendChild(actions);
+  return card;
+}
+function seqStepLabel(step, index){
+  return 'Step ' + (index+1) + ' — ' + (step.type === 'task' ? 'task' : 'email');
+}
+// Re-render whichever view we're in after a sequence change.
+function seqRerender(deck){
+  const cur = DB.decks.find(x=>x.id===deck.id) || deck;
+  if (state.view === 'lead' && state.leadId === cur.id) renderLead(cur);
+  else if (state.view === 'tasks') renderTasksSection();
+  else if (state.view === 'today') renderToday();
+  else renderDashboard();
+}
+// Execute the currently-due step for a deck (email → composer prefilled; task → create task), then advance.
+function runSequenceStep(deck){
+  const cur = DB.decks.find(x=>x.id===deck.id) || deck;
+  const st = seqState(cur);
+  if (!st || !st.due){ seqRerender(cur); return; }
+  const step = st.due.step;
+  if (step.type === 'task'){
+    const txt = seqPersonalize(step.subject, cur) || 'Sequence step';
+    addTask(cur, txt, seqToday());
+    seqAdvance(cur);
+    seqRerender(deck);
+    return;
+  }
+  // email step → open composer prefilled with the personalized template; advance only on actual send
+  openEmailModal(cur, {
+    subject: seqPersonalize(step.subject, cur),
+    body: seqPersonalize(step.body, cur),
+    afterSend: () => {
+      const d2 = DB.decks.find(x=>x.id===deck.id) || cur;
+      seqAdvance(d2);
+      pushHist((DB.decks.find(x=>x.id===deck.id)||d2).history, 'sequence', 'Sent “' + (st.seq.name) + '” step ' + (st.due.index+1));
+    }
+  });
 }
 const AI_SIG_V = 'ai4';   // bump when the AI prompt/output shape changes to invalidate cached overviews
 function leadAISig(deck){
@@ -4542,10 +4802,29 @@ function renderToday(force){
     el('div',{}, el('h1',{class:'today-title'}, greet + (first ? (', ' + first) : '')), el('p',{class:'today-date'}, new Date().toLocaleDateString(undefined,{weekday:'long', month:'long', day:'numeric'}))),
     el('button',{class:'btn ghost sm', type:'button', onClick:()=>renderToday(true)}, '↻ Refresh')));
   const sumEl = el('div',{class:'today-summary'}); body.appendChild(sumEl);
+
+  // Sequence steps due today — surfaced directly, pre-drafted, independent of the AI briefing.
+  const myId = AUTH && currentRep() ? currentRep().id : null;
+  const seqDue = sequencesDue().filter(x => !myId || x.deck.salespersonId === myId);
+  if (seqDue.length){
+    const seqWrap = el('div',{class:'today-seq'});
+    seqWrap.appendChild(el('div',{class:'today-seq-h'}, '↻ Sequence steps due (' + seqDue.length + ')'));
+    seqDue.forEach(({deck, state:st}) => {
+      const step = st.due.step, isEmail = step.type === 'email';
+      seqWrap.appendChild(el('div',{class:'today-seq-row'},
+        el('span',{class:'today-seq-ic', html: isEmail ? TL_ICON.mail : TL_ICON.check}),
+        el('div',{class:'today-seq-body'},
+          el('div',{class:'today-seq-top'}, el('span',{class:'today-school', onClick:()=>openLead(deck,'today')}, deck.school), el('span',{class:'today-seq-sub'}, ' — ' + seqPersonalize(step.subject, deck))),
+          el('div',{class:'today-seq-meta'}, st.seq.name + ' · step ' + (st.due.index+1) + ' of ' + st.total)),
+        el('button',{class:'btn sm primary', type:'button', onClick:()=>runSequenceStep(deck)}, isEmail ? 'Review & send' : 'Log & continue')));
+    });
+    body.appendChild(seqWrap);
+  }
+
   const listEl = el('div',{class:'today-list'}); body.appendChild(listEl);
 
   const cands = briefingCandidates();
-  if (!cands.length){ sumEl.appendChild(el('div',{class:'today-empty'}, (AUTH && AUTH.gmail===false) ? 'Connect Gmail in Settings to power your briefing. For now, nothing’s flagged — you’re clear.' : 'You’re all clear — no replies waiting, tasks due, or deals going cold. Nice work.')); return; }
+  if (!cands.length){ if (!seqDue.length) sumEl.appendChild(el('div',{class:'today-empty'}, (AUTH && AUTH.gmail===false) ? 'Connect Gmail in Settings to power your briefing. For now, nothing’s flagged — you’re clear.' : 'You’re all clear — no replies waiting, tasks due, or deals going cold. Nice work.')); return; }
 
   const draw = (data) => {
     sumEl.innerHTML = ''; listEl.innerHTML = '';
@@ -4881,6 +5160,25 @@ function renderTasksSection(){
       ));
     });
     body.appendChild(rl);
+  }
+
+  const seqDue = sequencesDue();
+  if (seqDue.length){
+    body.appendChild(el('div',{class:'nt-sec'}, '↻ Sequence steps due (' + seqDue.length + ')'));
+    const sl = el('div',{class:'nt-list'});
+    seqDue.forEach(({deck, state:st}) => {
+      const step = st.due.step, isEmail = step.type === 'email';
+      sl.appendChild(el('div',{class:'nt-row'},
+        el('span',{class:'nt-check reply-ic', html: isEmail ? TL_ICON.mail : TL_ICON.check}),
+        el('div',{class:'nt-body'},
+          el('div',{class:'nt-task'}, el('span',{class:'nt-acct', onClick:()=>openLead(deck,'tasks')}, deck.school), el('span',{class:'reply-subj'}, ' — ' + seqPersonalize(step.subject, deck))),
+          el('div',{class:'nt-meta'}, st.seq.name + ' · step ' + (st.due.index+1) + ' of ' + st.total + ' · ' + (isEmail ? 'email' : 'task'))),
+        el('div',{class:'nt-actions'},
+          el('button',{class:'btn sm primary', type:'button', onClick:()=>runSequenceStep(deck)}, isEmail ? 'Review & send' : 'Log & continue'),
+          el('button',{class:'btn ghost sm', type:'button', title:'Skip this step', onClick:()=>{ seqAdvance(deck); renderTasksSection(); }}, 'Skip'))
+      ));
+    });
+    body.appendChild(sl);
   }
 
   body.appendChild(el('div',{class:'nt-sec'}, 'Open tasks (' + openTasks.length + ')'));
@@ -5715,8 +6013,8 @@ function openEmailModal(deck, opts){
   closeModal();
   const sp = getTeam().find(p => p.id === deck.salespersonId) || null;
   const toInput = el('input',{type:'email', value: deck.contactEmail || '', placeholder:'contact@school.org'});
-  const subjInput = el('input',{type:'text', value: 'GearLocker for ' + deck.school});
-  const bodyArea = el('textarea',{class:'email-body', rows:'13'}, plainEmailBody(deck, sp));
+  const subjInput = el('input',{type:'text', value: opts.subject || ('GearLocker for ' + deck.school)});
+  const bodyArea = el('textarea',{class:'email-body', rows:'13'}, opts.body != null ? opts.body : plainEmailBody(deck, sp));
   // attachments are opt-in — nothing attaches unless the rep ticks it, and only if the deck is complete
   const ready = deckReadiness(deck);
   const attachDeckCb = el('input',{type:'checkbox'}); attachDeckCb.checked = ready.ready && !!opts.attachDeck; attachDeckCb.disabled = !ready.ready;
@@ -5769,6 +6067,7 @@ function openEmailModal(deck, opts){
       if (wantDeck) patch.emailedAt = now;   // attaching the presentation marks the "deck sent" milestone
       if (opts.replyTo && opts.replyTo.id) patch.replyDoneId = opts.replyTo.id;   // clear it from the reply queue
       upsertDeck(Object.assign({}, cur, patch));
+      if (typeof opts.afterSend === 'function') { try { opts.afterSend(); } catch(err){ console.warn('afterSend failed', err); } }
       closeModal();
       if (state.view==='lead' && state.leadId===cur.id) renderLead(cur); else renderDashboard();
     } catch (e) {
