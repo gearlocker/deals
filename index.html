@@ -4917,7 +4917,8 @@ function runSequenceStep(deck){
     }
   });
 }
-const AI_SIG_V = 'ai4';   // bump when the AI prompt/output shape changes to invalidate cached overviews
+const AI_SIG_V = 'ai5';   // bump when the AI prompt/output shape changes to invalidate cached overviews (ai5: strip leaked <parameter> tags)
+function stripParamTags(s){ return String(s||'').replace(/<\/?parameter\b[^>]*>/g,'').trim(); }
 function leadAISig(deck){
   const acts = deckActivities(deck), tasks = deckTasks(deck);
   // built from PERSISTED, shared fields only (not per-user session caches) so the saved overview is stable across reps
@@ -5263,9 +5264,10 @@ function openTodayDrawer(deck, p, cand){
 }
 const AI_BUSY = {};   // in-flight guard, keyed by deckId|sig
 function renderLeadAICached(cur, c, ovBody, nxBody){
-  ovBody.innerHTML=''; ovBody.appendChild(el('div',{class:'lead-ai-text'}, c.overview || 'No overview yet.'));
-  nxBody.innerHTML=''; nxBody.appendChild(el('div',{class:'lead-ai-text'}, c.recommendation || '—'));
-  nxBody.appendChild(el('button',{class:'btn sm', style:'margin-top:14px', type:'button', onClick:()=>openEmailModal(cur, c.emailBody ? { attach:false, draft:{ subject:c.emailSubject, body:c.emailBody, recommendation:c.recommendation } } : { attach:false, autodraft:true })}, 'Draft email →'));
+  const overview = stripParamTags(c.overview), recommendation = stripParamTags(c.recommendation);   // belt-and-suspenders if any stray markup slipped through
+  ovBody.innerHTML=''; ovBody.appendChild(el('div',{class:'lead-ai-text'}, overview || 'No overview yet.'));
+  nxBody.innerHTML=''; nxBody.appendChild(el('div',{class:'lead-ai-text'}, recommendation || '—'));
+  nxBody.appendChild(el('button',{class:'btn sm', style:'margin-top:14px', type:'button', onClick:()=>openEmailModal(cur, c.emailBody ? { attach:false, draft:{ subject:stripParamTags(c.emailSubject), body:stripParamTags(c.emailBody), recommendation:recommendation } } : { attach:false, autodraft:true })}, 'Draft email →'));
 }
 function paintLeadAI(deck, ovBody, nxBody){
   const cur = DB.decks.find(d=>d.id===deck.id) || deck;
