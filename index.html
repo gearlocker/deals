@@ -2395,7 +2395,33 @@
   .metric-table tbody tr:hover { background: var(--wash); }
   .metric-table tfoot td { position: sticky; bottom: 0; font-weight: 700; color: var(--ink); background: var(--paper); border-top: 2px solid var(--border); }
   .mx-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
+  .mx-head-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .mx-range { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+  /* Conversion funnel */
+  .funnel-overall { font-size: 13px; font-weight: 700; color: var(--ink); }
+  .funnel { display: flex; flex-direction: column; gap: 10px; }
+  .funnel-row { display: grid; grid-template-columns: 124px 1fr 168px; align-items: center; gap: 14px; }
+  .funnel-label { font-size: 13px; font-weight: 600; color: var(--ink-2); text-align: right; }
+  .funnel-track { background: var(--wash); border-radius: 7px; height: 34px; overflow: hidden; }
+  .funnel-fill { height: 100%; background: var(--ink); border-radius: 7px; display: flex; align-items: center; padding: 0 11px; min-width: 30px; }
+  .funnel-row:nth-child(1) .funnel-fill { background: #1a56b0; }
+  .funnel-row:nth-child(2) .funnel-fill { background: #2b6fce; }
+  .funnel-row:nth-child(3) .funnel-fill { background: #b6781a; }
+  .funnel-row:nth-child(4) .funnel-fill { background: #c2566b; }
+  .funnel-row:nth-child(5) .funnel-fill { background: #1f9d55; }
+  .funnel-n { color: #fff; font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .funnel-conv { font-size: 12.5px; color: var(--ink-2); }
+  .funnel-conv b { font-weight: 700; color: var(--ink); }
+  .funnel-conv .muted { color: var(--ink-4); }
+  .funnel-drop { color: var(--accent-dark, #c2302b); font-weight: 600; }
+  /* Velocity */
+  .velocity-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 6px; }
+  .velocity-stat { background: var(--wash); border-radius: var(--radius-sm); padding: 14px 16px; }
+  .velocity-num { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .velocity-lbl { font-size: 12px; font-weight: 600; color: var(--ink-4); margin-top: 4px; }
+  .velocity-sub { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-4); margin: 20px 0 0; }
+  .metric-table tr.clickrow { cursor: pointer; }
+  @media (max-width: 720px){ .velocity-stats { grid-template-columns: repeat(2, 1fr); } .funnel-row { grid-template-columns: 90px 1fr; } .funnel-conv { grid-column: 2; padding-left: 0; } }
   .mx-range-btn { font: inherit; font-size: 13px; font-weight: 600; color: var(--ink-3); background: var(--paper); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 12px; cursor: pointer; }
   .mx-range-btn:hover { border-color: var(--ink-3); }
   .mx-range-btn.active { background: var(--ink); color: #fff; border-color: var(--ink); }
@@ -6117,9 +6143,19 @@ function metricsRangeBar(){
   }
   return bar;
 }
+function metricsRepSelect(){
+  const sel = el('select',{class:'queue-scope'});
+  sel.appendChild(el('option',{value:'all'}, 'All reps'));
+  getTeam().slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''))).forEach(p => sel.appendChild(el('option',{value:p.id}, p.name||p.email||'Rep')));
+  sel.value = state.metricsRep || 'all';
+  sel.addEventListener('change', ()=>{ state.metricsRep = sel.value; renderMetrics(); });
+  return sel;
+}
 function renderMetrics(){
   const body=document.getElementById('metrics-body'); body.innerHTML='';
-  const decks=getDecks(), team=getTeam();
+  const team=getTeam();
+  const repId = (state.metricsRep && state.metricsRep!=='all') ? state.metricsRep : null;
+  const decks = repId ? getDecks().filter(d=>d.salespersonId===repId) : getDecks();
   const repName=id=>(team.find(p=>p.id===id)||{}).name||'Unassigned';
   const months=metricsMonths();
   const mset=new Set(months.map(m=>m.key));
@@ -6127,8 +6163,8 @@ function renderMetrics(){
   const rangeLabel = months.length ? (months[0].label + ' – ' + months[months.length-1].label) : '';
   body.appendChild(el('div',{class:'mx-head'},
     el('div',{}, el('h1',{class:'lb-title'},'Dashboard'),
-      el('p',{class:'lb-sub'}, rangeLabel + ' · everything below is filtered to this window (open pipeline is a live snapshot).')),
-    metricsRangeBar()));
+      el('p',{class:'lb-sub'}, rangeLabel + (repId ? (' · ' + repName(repId)) : '') + ' · filtered to this window (open pipeline is a live snapshot).')),
+    el('div',{class:'mx-head-controls'}, metricsRepSelect(), metricsRangeBar())));
   // KPIs filtered to the window by each metric's own date
   const leads=decks.filter(d=>inR(d.createdAt));
   const demos=decks.filter(d=>inR(demoDate(d)));
@@ -6147,6 +6183,8 @@ function renderMetrics(){
     kpi('Collected', paid.length + (paidAmt?(' · '+fmtUSD(paidAmt)):''), 'Deals marked Paid in this window and the total collected.'),
     kpi('Open pipeline', fmtUSD(openAmt), 'Total annual value of all currently-open deals. A live snapshot — not limited to the date window.')
   ));
+  body.appendChild(funnelSection(leads, repName));
+  body.appendChild(velocitySection(decks, demos, commits, won, repName));
   const schoolCol = {label:'School', get:d=>d.school};
   const repCol = {label:'Rep', get:d=>repName(d.salespersonId)};
   const amtCol = {label:'Amount', num:true, get:d=>fmtUSD(dealAmount(d)), total:d=>dealAmount(d), totalFmt:fmtUSD};
@@ -6167,6 +6205,75 @@ function renderMetrics(){
   const grid = el('div',{class:'metric-grid'});
   specs.forEach((spec, idx) => grid.appendChild(dashChartCard(spec, idx, months)));
   body.appendChild(grid);
+}
+// Conversion funnel — of the leads created in the window, how many reached each stage.
+function funnelSection(leads, repName){
+  const reachedSched = d => !!(demoDate(d)||committedDate(d)||closedWonDate(d)||(d.stageDates&&d.stageDates.demoscheduled)||['demoscheduled','noshow'].includes(dealStage(d)));
+  const stages = [
+    { label:'Leads',          n: leads.length },
+    { label:'Demo scheduled', n: leads.filter(reachedSched).length },
+    { label:'Demo done',      n: leads.filter(d=>!!demoDate(d)).length },
+    { label:'Verbal commit',  n: leads.filter(d=>!!committedDate(d)).length },
+    { label:'Won',            n: leads.filter(d=>!!closedWonDate(d)).length }
+  ];
+  const first = stages[0].n || 1;
+  const overall = leads.length ? Math.round(100*stages[4].n/leads.length) : 0;
+  const card = el('div',{class:'metric-card'});
+  card.appendChild(el('div',{class:'metric-h'},
+    el('span',{}, 'Conversion funnel'),
+    infoTip('Of the leads created in this window, how many reached each stage. The % on the right is conversion from the previous stage. Recent leads may not have had time to convert — use a longer window for a mature read.'),
+    el('div',{class:'metric-h-actions'}, el('span',{class:'funnel-overall'}, leads.length + ' leads → ' + stages[4].n + ' won · ' + overall + '%'))));
+  if (!leads.length){ card.appendChild(el('div',{class:'lead-empty', style:'padding:24px 4px'},'No leads in this window.')); return card; }
+  const funnel = el('div',{class:'funnel'});
+  stages.forEach((s,i)=>{
+    const pct = Math.round(100*s.n/first);
+    const stepConv = i===0 ? null : (stages[i-1].n ? Math.round(100*s.n/stages[i-1].n) : 0);
+    const drop = i===0 ? 0 : (stages[i-1].n - s.n);
+    funnel.appendChild(el('div',{class:'funnel-row'},
+      el('div',{class:'funnel-label'}, s.label),
+      el('div',{class:'funnel-track'}, el('div',{class:'funnel-fill', style:'width:'+Math.max(pct,3)+'%'}, el('span',{class:'funnel-n'}, String(s.n)))),
+      el('div',{class:'funnel-conv'}, i===0 ? el('span',{class:'muted'},'100% of leads')
+        : el('span',{}, el('b',{}, stepConv+'%'), el('span',{class:'muted'},' from prev'), drop>0?el('span',{class:'funnel-drop'},'  −'+drop):null))));
+  });
+  card.appendChild(funnel);
+  return card;
+}
+// Velocity (avg days between stages) + the open deals stuck longest in their current stage.
+function velocitySection(decks, demos, commits, won, repName){
+  const dd = (a,b)=> (new Date(b).getTime()-new Date(a).getTime())/86400000;
+  const avg = (arr, fromFn, toFn) => { const xs=arr.map(d=>{ const f=fromFn(d), t=toFn(d); return (f&&t)?dd(f,t):null; }).filter(v=>v!=null && v>=0); return xs.length ? Math.round(xs.reduce((a,b)=>a+b,0)/xs.length) : null; };
+  const v = [
+    { label:'Lead → Demo',   d: avg(demos,   d=>d.createdAt,      d=>demoDate(d)) },
+    { label:'Demo → Commit', d: avg(commits, d=>demoDate(d),      d=>committedDate(d)) },
+    { label:'Commit → Won',  d: avg(won,     d=>committedDate(d), d=>closedWonDate(d)) },
+    { label:'Full cycle',    d: avg(won,     d=>d.createdAt,      d=>closedWonDate(d)) }
+  ];
+  const now = Date.now();
+  const stalled = decks.filter(isOpenDeal).map(d => {
+    const st = dealStage(d);
+    const enteredAt = (d.stageDates && d.stageDates[st]) || d.createdAt;
+    return { deck:d, days: enteredAt ? Math.floor((now - new Date(enteredAt).getTime())/86400000) : 0 };
+  }).sort((a,b)=>b.days-a.days).slice(0,8);
+  const card = el('div',{class:'metric-card'});
+  card.appendChild(el('div',{class:'metric-h'}, el('span',{},'Velocity & stalled deals'),
+    infoTip('Average days between stages (from deals whose later milestone falls in this window), and the open deals stuck longest in their current stage. Click a row to open it.')));
+  const stats = el('div',{class:'velocity-stats'});
+  v.forEach(x => stats.appendChild(el('div',{class:'velocity-stat'},
+    el('div',{class:'velocity-num'}, x.d!=null ? (x.d + 'd') : '—'),
+    el('div',{class:'velocity-lbl'}, x.label))));
+  card.appendChild(stats);
+  card.appendChild(el('div',{class:'velocity-sub'}, 'Stuck the longest'));
+  if (!stalled.length){ card.appendChild(el('div',{class:'lead-empty', style:'padding:14px 4px'},'No open deals.')); return card; }
+  card.appendChild(el('div',{class:'metric-table-scroll', style:'margin-top:8px'},
+    el('table',{class:'metric-table'},
+      el('thead',{}, el('tr',{}, el('th',{},'School'), el('th',{},'Rep'), el('th',{},'Stage'), el('th',{class:'num'},'Days in stage'), el('th',{},'Health'))),
+      el('tbody',{}, ...stalled.map(s => el('tr',{class:'clickrow', onClick:()=>openLead(s.deck,'dashboard')},
+        el('td',{}, s.deck.school),
+        el('td',{}, repName(s.deck.salespersonId)),
+        el('td',{}, el('span',{class:'stage-chip stage-'+dealStage(s.deck)}, stageMeta(dealStage(s.deck)).short)),
+        el('td',{class:'num'}, String(s.days)),
+        el('td',{}, healthChip(s.deck)||el('span',{class:'muted'},'—'))))))));
+  return card;
 }
 function setDeckStage(deckId, newStage){
   const cur=DB.decks.find(x=>x.id===deckId); if(!cur) return;
