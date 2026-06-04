@@ -1838,22 +1838,35 @@
   .rep-controls { display:flex; align-items:center; gap:10px; }
   .rep-week-lbl { font-size:13px; color:var(--ink-4); font-weight:600; }
   .rep-week-sel { padding:8px 12px; border:1px solid var(--border); border-radius:10px; font:inherit; font-size:13px; background:#fff; cursor:pointer; }
-  .rep-preview { display:flex; flex-direction:column; align-items:center; gap:26px; padding:6px 0 48px; }
-  .rep-preview-page { box-shadow:0 6px 30px rgba(0,0,0,.13); border-radius:6px; overflow:hidden; flex:none; }
-  @media (max-width: 900px){ .rep-preview-page { transform:scale(.62); transform-origin:top center; margin-bottom:-400px; } }
 
-  /* ---- report page internals (live inside a .prop-page) ---- */
-  .rep-hd-tag { margin-left:auto; font-size:12px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-4); }
-  .rep-week-title { font-size:30px; font-weight:600; letter-spacing:-.02em; margin:0 0 4px; line-height:1.1; }
-  .rep-week-meta { font-size:13px; color:var(--ink-4); margin:0 0 22px; }
+  /* loss-reason capture */
+  .loss-chips { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 18px; }
+  .loss-chip { font:inherit; font-size:13px; padding:8px 13px; border-radius:999px; border:1px solid var(--border); background:#fff; color:var(--ink-2); cursor:pointer; transition:background .12s var(--easing), border-color .12s var(--easing), color .12s var(--easing); }
+  .loss-chip:hover { border-color:var(--ink-4); }
+  .loss-chip.sel { background:var(--ink); border-color:var(--ink); color:#fff; }
+  .loss-note { width:100%; box-sizing:border-box; font:inherit; font-size:14px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; resize:vertical; }
+  .lead-loss-btn { font:inherit; font-size:13px; font-weight:600; color:var(--ink); background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:6px 11px; cursor:pointer; text-align:left; }
+  .lead-loss-btn:hover { border-color:var(--accent); }
+  .lead-loss-btn.empty { color:var(--accent); background:#fff; }
+  .lead-loss-note { font-size:12px; color:var(--ink-4); margin-top:5px; line-height:1.4; }
 
-  .rep-status { display:flex; align-items:center; gap:16px; border-radius:16px; padding:15px 20px; margin-bottom:24px; }
-  .rep-status .rs-badge { font-size:14px; font-weight:700; letter-spacing:.04em; padding:6px 14px; border-radius:999px; white-space:nowrap; }
-  .rep-status .rs-text { font-size:13px; line-height:1.5; }
-  .rep-status.on { background:#ecfdf3; } .rep-status.on .rs-badge{ background:#16a34a; color:#fff; } .rep-status.on .rs-text{ color:#166534; }
-  .rep-status.watch { background:#fffbeb; } .rep-status.watch .rs-badge{ background:#d97706; color:#fff; } .rep-status.watch .rs-text{ color:#92400e; }
-  .rep-status.off { background:#fef2f2; } .rep-status.off .rs-badge{ background:#dc2626; color:#fff; } .rep-status.off .rs-text{ color:#991b1b; }
-  .rep-status.none { background:var(--surface); } .rep-status.none .rs-badge{ background:var(--ink-4); color:#fff; } .rep-status.none .rs-text{ color:var(--ink-3); }
+  /* dashboard parity: KPI deltas, gran toggle, loss bars, forecast-vs-plan */
+  .kpi-d { display:block; margin-top:6px; font-size:11px; font-weight:600; line-height:1.2; }
+  .kpi-d.up { color:#16a34a; } .kpi-d.down { color:#dc2626; } .kpi-d.flat { color:var(--ink-4); }
+  .mx-gran { display:inline-flex; border:1px solid var(--border); border-radius:9px; overflow:hidden; }
+  .mx-gran-btn { font:inherit; font-size:12.5px; font-weight:600; padding:7px 12px; background:#fff; border:none; color:var(--ink-3); cursor:pointer; }
+  .mx-gran-btn.active { background:var(--ink); color:#fff; }
+  .lossbar-wrap { display:flex; flex-direction:column; gap:10px; margin-top:6px; }
+  .lossbar-row { display:grid; grid-template-columns:160px 1fr 92px; align-items:center; gap:12px; }
+  .lossbar-label { font-size:13px; color:var(--ink-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .lossbar-track { height:14px; background:var(--surface); border-radius:999px; overflow:hidden; }
+  .lossbar-fill { height:100%; background:#dc2626; border-radius:999px; opacity:.82; }
+  .lossbar-n { font-size:12px; color:var(--ink-4); text-align:right; white-space:nowrap; }
+  .fc-plan { margin-top:16px; border-top:1px solid var(--border); padding-top:12px; display:flex; flex-direction:column; gap:9px; }
+  .fc-plan-row { display:flex; justify-content:space-between; align-items:center; font-size:13.5px; color:var(--ink-3); }
+  .fc-plan-row b { color:var(--ink); font-weight:700; }
+  .fc-plan-row.hl b { font-size:15px; }
+  .fc-cov.ok, .fc-cov.met { color:#16a34a !important; } .fc-cov.watch { color:#d97706 !important; } .fc-cov.short { color:#dc2626 !important; }
 
   .rep-kpis { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
   .rep-kpi { border:1px solid var(--border); border-radius:14px; padding:14px 16px; }
@@ -3514,6 +3527,14 @@ function saveSources(list){
   if (cloudOn()) sbUpsert('settings', 'sources', sourcesConfig()).catch(e => console.warn('sources sync failed', e));
 }
 function sourceNames(){ return SOURCES.map(s => s.name); }
+
+/* Loss reasons — configurable list captured when a deal is marked Closed Lost. */
+const LOSS_REASONS_KEY = 'gl_lossreasons_v1';
+const DEFAULT_LOSS_REASONS = ['Price / budget', 'Chose a competitor', 'No budget this cycle', 'Timing — revisit later', 'Stuck with status quo', 'Lost contact / went dark', 'Not a fit', 'Champion left'];
+let LOSS_REASONS = DEFAULT_LOSS_REASONS.slice();
+function lossReasonsConfig(){ return { type:'lossreasons', list: LOSS_REASONS }; }
+function applyLossReasons(cfg){ if (cfg && Array.isArray(cfg.list)){ const l = cfg.list.map(x => String(x||'').trim()).filter(Boolean); if (l.length) LOSS_REASONS = l; } }
+function saveLossReasons(list){ applyLossReasons({ list }); saveJSON(LOSS_REASONS_KEY, lossReasonsConfig()); if (cloudOn()) sbUpsert('settings', 'lossreasons', lossReasonsConfig()).catch(e => console.warn('loss reasons sync failed', e)); }
 function subsFor(name){ const s = SOURCES.find(x => x.name === name); return s ? s.subs : []; }
 /* ---- Monthly goals (dashboard pacing) ---- */
 const GOALS_KEY = 'gl_goals_v1';
@@ -3711,6 +3732,7 @@ applyAutomation(loadJSON(AUTOMATION_KEY, null));   // restore automation toggles
 applyPlaybooks(loadJSON(PLAYBOOKS_KEY, null));      // restore stage playbooks (cloud copy loads in refreshFromCloud)
 applySequences(loadJSON(SEQUENCES_KEY, null));      // restore email sequences (cloud copy loads in refreshFromCloud)
 applySources(loadJSON(SOURCES_KEY, null));          // restore lead sources (cloud copy loads in refreshFromCloud)
+applyLossReasons(loadJSON(LOSS_REASONS_KEY, null)); // restore loss reasons
 applyGoals(loadJSON(GOALS_KEY, null));               // restore monthly goals
 function getDecks(){ return DB.decks; }
 function getTeam(){ return DB.team; }
@@ -3825,6 +3847,8 @@ async function refreshFromCloud(){
   if (goals){ applyGoals(goals); saveJSON(GOALS_KEY, goalsConfig()); }
   const sources = (settings || []).find(s => s && s.type === 'sources');
   if (sources){ applySources(sources); saveJSON(SOURCES_KEY, sourcesConfig()); }
+  const lossr = (settings || []).find(s => s && s.type === 'lossreasons');
+  if (lossr){ applyLossReasons(lossr); saveJSON(LOSS_REASONS_KEY, lossReasonsConfig()); }
   return { blocked: false };
 }
 const uid = (p) => p + Math.random().toString(36).slice(2,8) + Date.now().toString(36).slice(-4);
@@ -4387,7 +4411,7 @@ function renderSettingsTabs(){
   const tabs = document.getElementById('settings-tabs');
   if (!tabs) return;
   tabs.innerHTML = '';
-  [['pricing','Pricing'],['goals','Goals'],['sources','Lead sources'],['team','Team'],['rubric','Call rubric'],['automation','Automation'],['playbooks','Playbooks'],['sequences','Sequences'],['google','Google sync']].forEach(([key,label]) => {
+  [['pricing','Pricing'],['goals','Goals'],['sources','Lead sources'],['lossreasons','Loss reasons'],['team','Team'],['rubric','Call rubric'],['automation','Automation'],['playbooks','Playbooks'],['sequences','Sequences'],['google','Google sync']].forEach(([key,label]) => {
     tabs.appendChild(el('button',{ class:'settings-tab' + (settingsTab===key?' active':''), type:'button', onClick:()=>{ settingsTab = key; renderSettingsPage(); window.scrollTo(0,0); } }, label));
   });
 }
@@ -4401,6 +4425,7 @@ function renderSettingsPage(){
   else if (settingsTab === 'playbooks') body.appendChild(renderPlaybookSettings());
   else if (settingsTab === 'sequences') body.appendChild(renderSequenceSettings());
   else if (settingsTab === 'sources') body.appendChild(renderSourceSettings());
+  else if (settingsTab === 'lossreasons') body.appendChild(renderLossReasonSettings());
   else if (settingsTab === 'goals') body.appendChild(renderGoalsSettings());
   else if (settingsTab === 'google') body.appendChild(renderGoogleSettings());
   else {
@@ -4669,6 +4694,37 @@ function renderSourceSettings(){
     renderSettingsPage();
   };
   const reset = () => { if (confirm('Reset lead sources to defaults?')){ saveSources(JSON.parse(JSON.stringify(DEFAULT_SOURCES))); renderSettingsPage(); } };
+  wrap.appendChild(el('div',{class:'settings-actions'},
+    el('button',{class:'btn ghost sm', type:'button', onClick:reset}, 'Reset to defaults'),
+    el('div',{style:'display:flex;align-items:center;gap:16px'}, status, el('button',{class:'btn primary', type:'button', onClick:save}, 'Save'))));
+  return wrap;
+}
+function renderLossReasonSettings(){
+  const draft = LOSS_REASONS.slice();
+  const wrap = el('div',{});
+  wrap.appendChild(el('p',{class:'settings-subtitle'}, 'When a rep marks a deal Closed Lost, they pick from these reasons. Keep the list short and mutually exclusive — it powers the win/loss breakdown on the dashboard and weekly report. Saved for the whole team.'));
+  const status = el('span',{class:'settings-saved'}, '');
+  const bodyEl = el('div',{class:'src-editor'});
+  const draw = () => {
+    bodyEl.innerHTML = '';
+    if (!draft.length) bodyEl.appendChild(el('div',{class:'pb-empty'}, 'No reasons yet. Add one below.'));
+    draft.forEach((r, i) => {
+      const inp = el('input',{type:'text', class:'src-name-input', placeholder:'Loss reason…', value: r || ''});
+      inp.addEventListener('input', ()=>{ draft[i] = inp.value; });
+      bodyEl.appendChild(el('div',{class:'pb-card src-card'},
+        el('div',{class:'src-head'}, inp,
+          el('button',{class:'pb-x', type:'button', title:'Delete reason', onClick:()=>{ draft.splice(i,1); draw(); }}, '✕'))));
+    });
+  };
+  draw();
+  wrap.appendChild(bodyEl);
+  wrap.appendChild(el('button',{class:'btn ghost sm', type:'button', style:'margin-top:8px', onClick:()=>{ draft.push('New reason'); draw(); }}, '+ Add reason'));
+  const save = () => {
+    saveLossReasons(draft.map(x => String(x||'').trim()).filter(Boolean));
+    status.textContent = 'Saved ✓'; setTimeout(()=>status.textContent='', 2500);
+    renderSettingsPage();
+  };
+  const reset = () => { if (confirm('Reset loss reasons to defaults?')){ saveLossReasons(DEFAULT_LOSS_REASONS.slice()); renderSettingsPage(); } };
   wrap.appendChild(el('div',{class:'settings-actions'},
     el('button',{class:'btn ghost sm', type:'button', onClick:reset}, 'Reset to defaults'),
     el('div',{style:'display:flex;align-items:center;gap:16px'}, status, el('button',{class:'btn primary', type:'button', onClick:save}, 'Save'))));
@@ -5368,6 +5424,10 @@ function leadStageSelect(deck){
   sel.addEventListener('change', ()=>{ setDeckStage(deck.id, sel.value); renderLead(DB.decks.find(x=>x.id===deck.id)||deck); });
   return sel;
 }
+function lossReasonInline(deck){
+  const btn = el('button',{class:'lead-loss-btn' + (deck.lostReason?'':' empty'), type:'button', title:'Edit loss reason', onClick:()=>promptLossReason(deck.id)}, deck.lostReason || '+ Add a reason');
+  return deck.lostNote ? el('div',{}, btn, el('div',{class:'lead-loss-note'}, deck.lostNote)) : btn;
+}
 function leadSourceRows(deck){
   const sourceSel = el('select',{class:'lead-edit-input'}, ...sourceNames().map(n=>el('option',{value:n}, n)));
   if (deck.leadSource && !sourceNames().includes(deck.leadSource)) sourceSel.appendChild(el('option',{value:deck.leadSource}, deck.leadSource));
@@ -5427,6 +5487,7 @@ function renderLeadOverview(deck, content, sp, contact){
       leadEditRow('Owner', leadOwnerSelect(deck)),
       el('div',{class:'lead-info-row'}, el('span',{class:'lead-info-k'},'Forecast'), el('div',{class:'lead-amt-wrap'}, el('span',{class:'lead-amt-$'},'$'), amtInput, el('span',{class:'lead-amt-yr'},'/yr'))),
       leadEditRow('Stage', leadStageSelect(deck)),
+      (dealStage(deck)==='closedlost' ? leadEditRow('Loss reason', lossReasonInline(deck)) : null),
       ...leadSourceRows(deck),
       infoRow('Created', deck.createdAt ? fmtDay(deck.createdAt) : '—')
     ),
@@ -6295,7 +6356,7 @@ function committedDate(d){ if (d.stageDates && d.stageDates.verbalcommit) return
 function closedWonDate(d){ if (d.stageDates && d.stageDates.closedwon) return d.stageDates.closedwon; return dealStage(d)==='closedwon' ? (d.updatedAt||d.createdAt) : null; }
 function bucketSeries(decks, dateFn, groupFn, months, valFn){
   const groups={};
-  decks.forEach(d=>{ const date=dateFn(d); if(!date) return; const mi=months.findIndex(m=>m.key===monthKey(date)); if(mi<0) return; const g=groupFn(d)||'—'; (groups[g]=groups[g]||months.map(()=>0))[mi] += valFn?valFn(d):1; });
+  decks.forEach(d=>{ const date=dateFn(d); if(!date) return; const mi=months.findIndex(m=>m.key===bucketKeyOf(date)); if(mi<0) return; const g=groupFn(d)||'—'; (groups[g]=groups[g]||months.map(()=>0))[mi] += valFn?valFn(d):1; });
   return Object.keys(groups).map((g,i)=>({ label:g, color:CHART_COLORS[i%CHART_COLORS.length], data:groups[g] }));
 }
 function stackedChart(months, series, fmt){
@@ -6308,26 +6369,6 @@ function stackedChart(months, series, fmt){
   ))));
 }
 function chartLegend(series){ const a=series.filter(s=>s.data.some(v=>v)); return a.length ? el('div',{class:'chart-legend'}, ...a.map(s=>el('span',{class:'chart-leg'}, el('span',{class:'chart-dot', style:'background:'+s.color}), s.label))) : null; }
-function chartCard(title, months, series, fmt, tip, detail){
-  const has=series.some(s=>s.data.some(v=>v));
-  const head = el('div',{class:'metric-h'}, el('span',{}, title), tip?infoTip(tip):null);
-  const card = el('div',{class:'metric-card'}, head,
-    has ? stackedChart(months, series, fmt) : el('div',{class:'lead-empty', style:'padding:30px 4px'},'No data in this window yet.'),
-    has ? chartLegend(series) : null
-  );
-  if (detail && detail.cols && detail.decks){   // drill-down: show every record behind the chart so the numbers can be audited
-    let open = false;
-    const wrap = el('div',{class:'metric-table-wrap', style:'display:none'});
-    const toggle = el('button',{class:'metric-data-toggle', type:'button', onClick:()=>{
-      open = !open; wrap.style.display = open ? '' : 'none';
-      toggle.textContent = (open ? 'Hide data ▴' : 'View data ▾') + ' (' + detail.decks.length + ')';
-      if (open && !wrap._built){ wrap._built = true; wrap.appendChild(metricTable(detail.cols, detail.decks)); }
-    }}, 'View data ▾ (' + detail.decks.length + ')');
-    head.appendChild(toggle);
-    card.appendChild(wrap);
-  }
-  return card;
-}
 // A scrollable table of the individual records behind a chart (cols: {label, get, num?, sortVal?, total?, totalFmt?}).
 function metricTable(cols, decks){
   const sortCol = cols.find(c => c.sortVal);
@@ -6346,7 +6387,19 @@ function metricTable(cols, decks){
 }
 const INFO_SVG = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="11" x2="12" y2="16"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>';
 function infoTip(text){ return el('span',{class:'info-tip', 'data-tip':text, html:INFO_SVG}); }   // custom CSS tooltip (reliable, wraps)
-function kpi(label, value, tip){ return el('div',{class:'kpi'}, el('div',{class:'kpi-val'}, value), el('div',{class:'kpi-lbl'}, label, tip?infoTip(tip):null)); }
+function kpi(label, value, tip, delta){ return el('div',{class:'kpi'}, el('div',{class:'kpi-val'}, value), el('div',{class:'kpi-lbl'}, label, tip?infoTip(tip):null), delta||null); }
+// Period-over-period delta chip for a KPI (current window vs the prior equal-length window).
+function pvpDelta(cur, prev, opts){
+  opts = opts || {};
+  if (prev == null) return null;
+  const diff = cur - prev;
+  if (diff === 0) return el('span',{class:'kpi-d flat'}, 'flat vs prior');
+  const up = diff > 0, good = opts.lowerBetter ? !up : up;
+  const val = opts.money ? fmtMoneyK(Math.abs(diff)) : String(Math.abs(diff));
+  const showPct = prev && (opts.money ? Math.abs(prev) >= 1000 : Math.abs(prev) >= 5);
+  const pct = showPct ? (' ' + Math.round(100*Math.abs(diff)/Math.abs(prev)) + '%') : '';
+  return el('span',{class:'kpi-d ' + (good?'up':'down')}, (up?'▲ ':'▼ ') + val + pct + ' vs prior');
+}
 // --- Chart spec model: each chart renders as count (#) or dollars ($), and expands full-screen with its records ---
 function chartMode(idx, spec){ return (state.chartModes && state.chartModes[idx]) || spec.defaultMode || 'count'; }
 function specSeries(spec, months, mode){ return bucketSeries(spec.decks, spec.dateFn, spec.groupFn, months, mode==='amount' ? d=>dealAmount(d) : null); }
@@ -6401,7 +6454,12 @@ function monthsBetween(fromStr, toStr){
   }
   return out.length?out:lastMonths(6);
 }
-function metricsMonths(){
+// --- Bucketing: the dashboard can group by month (default) or week ---
+function metricsGran(){ return state.metricsGran === 'week' ? 'week' : 'month'; }
+function weekKeyFromSun(s){ return 'W' + s.getFullYear() + '-' + String(s.getMonth()+1).padStart(2,'0') + '-' + String(s.getDate()).padStart(2,'0'); }
+function bucketKeyOf(dateStr){ if(!dateStr) return null; return metricsGran()==='week' ? weekKeyFromSun(weekStartSun(parseDay(dateStr))) : monthKey(dateStr); }
+function bucketStartDate(key){ if (key && key[0]==='W'){ const p=key.slice(1).split('-'); return new Date(+p[0], (+p[1]||1)-1, +p[2]||1); } const p=String(key).split('-'); return new Date(+p[0], (+p[1]||1)-1, 1); }
+function monthBuckets(){
   const r = state.metricsRange || '6m';
   if (r==='3m') return lastMonths(3);
   if (r==='12m') return lastMonths(12);
@@ -6410,6 +6468,19 @@ function metricsMonths(){
   if (r==='custom' && state.metricsFrom && state.metricsTo) return monthsBetween(state.metricsFrom, state.metricsTo);
   return lastMonths(6);
 }
+function weekBuckets(){
+  const r = state.metricsRange || '6m';
+  const W = 7*86400000, thisSun = weekStartSun(new Date());
+  let weeks = 26;
+  if (r==='3m') weeks=13; else if (r==='6m') weeks=26; else if (r==='12m') weeks=52;
+  else if (r==='ytd'){ weeks = Math.floor((thisSun - weekStartSun(new Date(new Date().getFullYear(),0,1)))/W) + 1; }
+  else if (r==='all'){ const ks=getDecks().map(d=>d.createdAt).filter(Boolean).sort(); if (ks.length){ weeks = Math.floor((thisSun - weekStartSun(parseDay(ks[0])))/W) + 1; } }
+  else if (r==='custom' && state.metricsFrom && state.metricsTo){ weeks = Math.floor((weekStartSun(parseDay(state.metricsTo)) - weekStartSun(parseDay(state.metricsFrom)))/W) + 1; }
+  weeks = Math.max(1, Math.min(weeks, 53));
+  const out=[]; for (let i=weeks-1;i>=0;i--){ const s=new Date(thisSun); s.setDate(s.getDate()-7*i); out.push({ key:weekKeyFromSun(s), label:s.toLocaleDateString(undefined,{month:'short',day:'numeric'}) }); }
+  return out;
+}
+function metricsMonths(){ return metricsGran()==='week' ? weekBuckets() : monthBuckets(); }
 function metricsRangeBar(){
   const presets=[['3m','3M'],['6m','6M'],['12m','12M'],['ytd','YTD'],['all','All'],['custom','Custom']];
   const bar=el('div',{class:'mx-range'});
@@ -6438,13 +6509,19 @@ function renderMetrics(){
   const decks = repId ? getDecks().filter(d=>d.salespersonId===repId) : getDecks();
   const repName=id=>(team.find(p=>p.id===id)||{}).name||'Unassigned';
   const months=metricsMonths();
+  const per = metricsGran()==='week' ? 'week' : 'month';
   const mset=new Set(months.map(m=>m.key));
-  const inR = dt => dt && mset.has(monthKey(dt));
+  const inR = dt => dt && mset.has(bucketKeyOf(dt));
+  // prior equal-length window (for the period-over-period arrows on KPIs)
+  const curStartT = months.length ? bucketStartDate(months[0].key).getTime() : Date.now();
+  const prevStartT = curStartT - Math.max(1, Date.now() - curStartT);
+  const prevInR = dt => { if(!dt) return false; const t=parseDay(dt).getTime(); return t>=prevStartT && t<curStartT; };
   const rangeLabel = months.length ? (months[0].label + ' – ' + months[months.length-1].label) : '';
   body.appendChild(el('div',{class:'mx-head'},
     el('div',{}, el('h1',{class:'lb-title'},'Dashboard'),
-      el('p',{class:'lb-sub'}, rangeLabel + (repId ? (' · ' + repName(repId)) : '') + ' · filtered to this window (open pipeline is a live snapshot).')),
-    el('div',{class:'mx-head-controls'}, metricsRepSelect(), metricsRangeBar())));
+      el('p',{class:'lb-sub'}, rangeLabel + ' · by ' + per + (repId ? (' · ' + repName(repId)) : '') + ' · arrows compare to the prior equal-length period.')),
+    el('div',{class:'mx-head-controls'}, metricsRepSelect(), metricsGranToggle(), metricsRangeBar(),
+      el('button',{class:'btn ghost sm', type:'button', title:'Download these leads as a spreadsheet', onClick:()=>exportMetricsCsv(decks)}, 'Export CSV'))));
   // KPIs filtered to the window by each metric's own date
   const leads=decks.filter(d=>inR(d.createdAt));
   const demos=decks.filter(d=>inR(demoDate(d)));
@@ -6454,31 +6531,35 @@ function renderMetrics(){
   const wonAmt=won.reduce((a,d)=>a+dealAmount(d),0), paidAmt=paid.reduce((a,d)=>a+dealAmount(d),0);
   const openAmt=decks.filter(isOpenDeal).reduce((a,d)=>a+dealAmount(d),0);
   const winRate=(won.length+lost.length)?Math.round(100*won.length/(won.length+lost.length)):null;
+  // prior-window counts for the deltas
+  const pLeads=decks.filter(d=>prevInR(d.createdAt)).length, pDemos=decks.filter(d=>prevInR(demoDate(d))).length,
+        pCommits=decks.filter(d=>prevInR(committedDate(d))).length, pWon=decks.filter(d=>prevInR(closedWonDate(d))).length,
+        pPaid=decks.filter(d=>prevInR(d.paidAt)).length;
   // --- build every section once, then place them into the active tab ---
   const kpiRow = el('div',{class:'kpi-row'},
-    kpi('Leads', String(leads.length), 'New leads created in this window (by the lead’s created date).'),
-    kpi('Demos', String(demos.length), 'Deals with a demo in this window — the manual “Demo done” date on the lead, or the graded call date if set.'),
-    kpi('Verbal commits', String(commits.length), 'Deals whose verbal-commit date falls in this window.'),
-    kpi('Closed won', won.length + (wonAmt?(' · '+fmtUSD(wonAmt)):''), 'Deals won in this window (by close date) and their total annual value.'),
+    kpi('Leads', String(leads.length), 'New leads created in this window (by the lead’s created date).', pvpDelta(leads.length, pLeads)),
+    kpi('Demos', String(demos.length), 'Deals with a demo in this window — the manual “Demo done” date on the lead, or the graded call date if set.', pvpDelta(demos.length, pDemos)),
+    kpi('Verbal commits', String(commits.length), 'Deals whose verbal-commit date falls in this window.', pvpDelta(commits.length, pCommits)),
+    kpi('Closed won', won.length + (wonAmt?(' · '+fmtUSD(wonAmt)):''), 'Deals won in this window (by close date) and their total annual value.', pvpDelta(won.length, pWon)),
     kpi('Win rate', winRate!=null?winRate+'%':'—', 'Of deals closed in this window, the % won: won ÷ (won + lost).'),
-    kpi('Collected', paid.length + (paidAmt?(' · '+fmtUSD(paidAmt)):''), 'Deals marked Paid in this window and the total collected.'),
+    kpi('Collected', paid.length + (paidAmt?(' · '+fmtUSD(paidAmt)):''), 'Deals marked Paid in this window and the total collected.', pvpDelta(paid.length, pPaid)),
     kpi('Open pipeline', fmtUSD(openAmt), 'Total annual value of all currently-open deals. A live snapshot — not limited to the date window.')
   );
   const schoolCol = {label:'School', get:d=>d.school};
   const repCol = {label:'Rep', get:d=>repName(d.salespersonId)};
   const amtCol = {label:'Amount', num:true, get:d=>fmtUSD(dealAmount(d)), total:d=>dealAmount(d), totalFmt:fmtUSD};
   const specs = [
-    { title:'Leads by month — by source', decks: leads.slice(), dateFn:d=>d.createdAt, groupFn:d=>sourceLabel(d)||'Other', defaultMode:'count',
-      tip:'Each lead counted in the month it was created, split by source (and sub-source). Toggle $ to sum forecast value instead.',
+    { title:'Leads by ' + per + ' — by source', decks: leads.slice(), dateFn:d=>d.createdAt, groupFn:d=>sourceLabel(d)||'Other', defaultMode:'count',
+      tip:'Each lead counted in the ' + per + ' it was created, split by source (and sub-source). Toggle $ to sum forecast value instead.',
       cols:[ schoolCol, {label:'Source', get:d=>sourceLabel(d)||'—'}, repCol, {label:'Created', get:d=>fmtDay(d.createdAt), sortVal:d=>d.createdAt}, amtCol ] },
-    { title:'Demos by month — by rep', decks: demos.slice(), dateFn:demoDate, groupFn:d=>repName(d.salespersonId), defaultMode:'count',
-      tip:'Each demo counted in the month it happened (the “Demo done” date, or the graded-call date), split by rep. Toggle $ for forecast value.',
+    { title:'Demos by ' + per + ' — by rep', decks: demos.slice(), dateFn:demoDate, groupFn:d=>repName(d.salespersonId), defaultMode:'count',
+      tip:'Each demo counted in the ' + per + ' it happened (the “Demo done” date, or the graded-call date), split by rep. Toggle $ for forecast value.',
       cols:[ schoolCol, repCol, {label:'Demo date', get:d=>fmtDay(demoDate(d)), sortVal:d=>demoDate(d)}, amtCol ] },
-    { title:'Verbal commits by month — by rep', decks: commits.slice(), dateFn:committedDate, groupFn:d=>repName(d.salespersonId), defaultMode:'count',
-      tip:'Each verbal commit counted in the month it was reached, split by rep. Toggle $ for forecast value.',
+    { title:'Verbal commits by ' + per + ' — by rep', decks: commits.slice(), dateFn:committedDate, groupFn:d=>repName(d.salespersonId), defaultMode:'count',
+      tip:'Each verbal commit counted in the ' + per + ' it was reached, split by rep. Toggle $ for forecast value.',
       cols:[ schoolCol, repCol, {label:'Commit date', get:d=>fmtDay(committedDate(d)), sortVal:d=>committedDate(d)}, amtCol ] },
-    { title:'Sales by month — by rep', decks: won.slice(), dateFn:closedWonDate, groupFn:d=>repName(d.salespersonId), defaultMode:'amount',
-      tip:'Won deals, split by rep. $ sums annual value in the month each deal closed; toggle # for the deal count.',
+    { title:'Sales by ' + per + ' — by rep', decks: won.slice(), dateFn:closedWonDate, groupFn:d=>repName(d.salespersonId), defaultMode:'amount',
+      tip:'Won deals, split by rep. $ sums annual value in the ' + per + ' each deal closed; toggle # for the deal count.',
       cols:[ schoolCol, repCol, {label:'Close date', get:d=>fmtDay(closedWonDate(d)), sortVal:d=>closedWonDate(d)}, amtCol ] }
   ];
   const chartsGrid = el('div',{class:'metric-grid'});
@@ -6491,19 +6572,86 @@ function renderMetrics(){
     content.appendChild(kpiRow);
     content.appendChild(el('div',{class:'metric-grid'}, goalsSection(decks), forecastSection(decks)));
   } else if (tab === 'goals'){
-    content.appendChild(goalsActualsSection(decks, months));
+    content.appendChild(goalsActualsSection(decks, monthBuckets()));
   } else if (tab === 'trends'){
     content.appendChild(kpiRow);
     content.appendChild(chartsGrid);
   } else if (tab === 'funnel'){
     content.appendChild(funnelSection(leads, repName));
     content.appendChild(velocitySection(decks, demos, commits, won, repName));
+    content.appendChild(lossReasonSection(decks));
+  } else if (tab === 'sources'){
+    content.appendChild(sourceSection(decks, inR));
   } else if (tab === 'activity'){
     content.appendChild(activitySection(decks, team, inR, repName));
   }
 }
+function metricsGranToggle(){
+  const g = metricsGran();
+  const set = v => { if (g!==v){ state.metricsGran = v; renderMetrics(); } };
+  return el('div',{class:'mx-gran'},
+    el('button',{class:'mx-gran-btn'+(g==='month'?' active':''), type:'button', onClick:()=>set('month')}, 'Month'),
+    el('button',{class:'mx-gran-btn'+(g==='week'?' active':''), type:'button', onClick:()=>set('week')}, 'Week'));
+}
+// Revenue & win-rate by lead source (window leads/won; open pipe & win rate are all-time).
+function sourceSection(decks, inR){
+  const map={};
+  decks.forEach(d=>{ const k=(d.leadSource||'').trim()||'Unspecified'; const m=map[k]||(map[k]={key:k,leads:0,wonAmt:0,open:0,won:0,lost:0});
+    if (inR(d.createdAt)) m.leads++;
+    if (inR(closedWonDate(d))) m.wonAmt+=dealAmount(d);
+    if (isOpenDeal(d)) m.open+=dealAmount(d);
+    const s=dealStage(d); if(s==='closedwon') m.won++; else if(s==='closedlost') m.lost++; });
+  const rows=Object.keys(map).map(k=>map[k]).map(m=>{ m.winRate=(m.won+m.lost)?Math.round(100*m.won/(m.won+m.lost)):null; return m; })
+    .sort((a,b)=>(b.wonAmt+b.open)-(a.wonAmt+a.open));
+  const card=el('div',{class:'metric-card'});
+  card.appendChild(el('div',{class:'metric-h'}, el('span',{},'By lead source'),
+    infoTip('Leads and Won $ are for the selected window; open pipeline and win rate are all-time. Shows which channels actually produce revenue, not just volume.')));
+  if (!rows.length){ card.appendChild(el('div',{class:'lead-empty', style:'padding:24px 4px'},'No deals yet.')); return card; }
+  card.appendChild(el('div',{class:'metric-table-scroll'},
+    el('table',{class:'metric-table'},
+      el('thead',{}, el('tr',{}, el('th',{},'Source'), el('th',{class:'num'},'Leads'), el('th',{class:'num'},'Won $'), el('th',{class:'num'},'Open pipe'), el('th',{class:'num'},'Win rate'))),
+      el('tbody',{}, ...rows.map(m => el('tr',{},
+        el('td',{}, m.key),
+        el('td',{class:'num'}, String(m.leads)),
+        el('td',{class:'num'}, fmtUSD(m.wonAmt)),
+        el('td',{class:'num'}, fmtUSD(m.open)),
+        el('td',{class:'num'}, m.winRate!=null ? (m.winRate+'%') : '—')))))));
+  return card;
+}
+// "Why we lose" — tally of loss reasons across all closed-lost deals.
+function lossReasonSection(decks){
+  const lost=decks.filter(d=>dealStage(d)==='closedlost');
+  const tally={}; lost.forEach(d=>{ const r=(d.lostReason||'').trim()||'Unspecified'; tally[r]=(tally[r]||0)+1; });
+  const rows=Object.keys(tally).map(k=>({reason:k,n:tally[k]})).sort((a,b)=>b.n-a.n);
+  const max=Math.max(1,...rows.map(r=>r.n));
+  const card=el('div',{class:'metric-card'});
+  card.appendChild(el('div',{class:'metric-h'}, el('span',{},'Why we lose'),
+    infoTip('Reasons captured when deals are marked Closed Lost (all time). Edit the reason list in Settings → Loss reasons.'),
+    el('div',{class:'metric-h-actions'}, el('span',{class:'funnel-overall'}, lost.length + ' lost'))));
+  if (!lost.length){ card.appendChild(el('div',{class:'lead-empty', style:'padding:20px 4px'},'No closed-lost deals yet.')); return card; }
+  const wrap=el('div',{class:'lossbar-wrap'});
+  rows.forEach(r => wrap.appendChild(el('div',{class:'lossbar-row'},
+    el('div',{class:'lossbar-label'}, r.reason),
+    el('div',{class:'lossbar-track'}, el('div',{class:'lossbar-fill', style:'width:'+Math.max(4,Math.round(100*r.n/max))+'%'})),
+    el('div',{class:'lossbar-n'}, String(r.n) + ' · ' + Math.round(100*r.n/lost.length) + '%'))));
+  card.appendChild(wrap);
+  return card;
+}
+// Download the (rep-filtered) deal list as CSV for finance/ops.
+function exportMetricsCsv(decks){
+  const team=getTeam();
+  const cols=[['School',d=>d.school],['Rep',d=>repNameOf(team,d)],['Stage',d=>stageMeta(dealStage(d)).label],['Source',d=>d.leadSource||''],['Sub-source',d=>d.leadSubSource||''],
+    ['Amount',d=>dealAmount(d)],['Created',d=>String(d.createdAt||'').slice(0,10)],['Demo',d=>String(demoDate(d)||'').slice(0,10)],['Commit',d=>String(committedDate(d)||'').slice(0,10)],
+    ['Won',d=>String(closedWonDate(d)||'').slice(0,10)],['Lost',d=>String(lostDate(d)||'').slice(0,10)],['Loss reason',d=>d.lostReason||''],['Paid',d=>String(d.paidAt||'').slice(0,10)]];
+  const esc=v=>{ const s=String(v==null?'':v); return /[",\n]/.test(s) ? ('"'+s.replace(/"/g,'""')+'"') : s; };
+  const lines=[cols.map(c=>c[0]).join(',')].concat(decks.slice().sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||''))).map(d=>cols.map(c=>esc(c[1](d))).join(',')));
+  const blob=new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob); const a=document.createElement('a');
+  a.href=url; a.download='gearlocker-leads-'+new Date().toISOString().slice(0,10)+'.csv';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
 function metricsTabBar(){
-  const tabs = [['overview','Overview'],['goals','Goals'],['trends','Trends'],['funnel','Funnel'],['activity','Activity']];
+  const tabs = [['overview','Overview'],['goals','Goals'],['trends','Trends'],['funnel','Funnel'],['sources','Sources'],['activity','Activity']];
   const active = state.metricsTab || 'overview';
   return el('div',{class:'mx-tabs'}, ...tabs.map(([k,lab]) =>
     el('button',{class:'mx-tab'+(active===k?' active':''), type:'button', onClick:()=>{ state.metricsTab=k; renderMetrics(); window.scrollTo(0,0); }}, lab)));
@@ -6636,6 +6784,22 @@ function forecastSection(allDecks){
   card.appendChild(el('div',{class:'fc-heads'},
     el('div',{class:'fc-head'}, el('div',{class:'fc-num accent'}, fmtUSD(Math.round(weighted))), el('div',{class:'fc-lbl'},'Weighted forecast')),
     el('div',{class:'fc-head'}, el('div',{class:'fc-num'}, fmtUSD(best)), el('div',{class:'fc-lbl'},'Best case (all open)'))));
+  // --- vs plan: coverage + projected landing against this month's revenue goal ---
+  const monthGoal = Number(GOALS.sales)||0;
+  if (monthGoal > 0){
+    const mk = new Date().toISOString().slice(0,7);
+    const wonMTD = allDecks.filter(d => String(closedWonDate(d)||'').slice(0,7) === mk).reduce((a,d)=>a+dealAmount(d),0);
+    const remaining = Math.max(0, monthGoal - wonMTD);
+    const coverage = remaining > 0 ? (best / remaining) : null;
+    const projected = wonMTD + weighted;
+    const gap = projected - monthGoal;
+    const covVerdict = coverage==null ? 'met' : (coverage>=3 ? 'ok' : coverage>=1.5 ? 'watch' : 'short');
+    card.appendChild(el('div',{class:'fc-plan'},
+      el('div',{class:'fc-plan-row'}, el('span',{},'This month’s goal'), el('b',{}, fmtUSD(monthGoal))),
+      el('div',{class:'fc-plan-row'}, el('span',{},'Won so far'), el('b',{}, fmtUSD(wonMTD) + ' · ' + Math.round(100*wonMTD/monthGoal) + '%')),
+      el('div',{class:'fc-plan-row'}, el('span',{},'Pipeline coverage'), el('b',{class:'fc-cov '+covVerdict}, coverage!=null ? (coverage.toFixed(1)+'× of the gap') : 'goal already met')),
+      el('div',{class:'fc-plan-row hl'}, el('span',{},'Projected landing'), el('b',{class: gap<0?'fc-cov short':'fc-cov ok'}, fmtUSD(Math.round(projected)) + ' · ' + (gap>=0 ? (fmtMoneyK(gap)+' over') : (fmtMoneyK(Math.abs(gap))+' short'))))));
+  }
   const rows = order.filter(s=>byStage[s]);
   if (rows.length) card.appendChild(el('div',{class:'metric-table-scroll', style:'margin-top:14px'},
     el('table',{class:'metric-table'},
@@ -6764,6 +6928,36 @@ function setDeckStage(deckId, newStage){
     if (auto){ patch.tasks = auto.tasks; patch.autoFired = auto.autoFired; patch.history = auto.history; }
   }
   upsertDeck(Object.assign({}, cur, patch));
+  if (newStage === 'closedlost' && old !== 'closedlost') promptLossReason(deckId);   // capture why on the transition
+}
+
+/* Ask the rep why a deal closed lost (configurable reasons + optional note). */
+function promptLossReason(deckId){
+  const deck = DB.decks.find(x => x.id === deckId); if (!deck) return;
+  let chosen = deck.lostReason || '';
+  const chips = el('div',{class:'loss-chips'});
+  const drawChips = () => { chips.innerHTML=''; LOSS_REASONS.forEach(r => {
+    const sel = chosen === r;
+    chips.appendChild(el('button',{class:'loss-chip' + (sel?' sel':''), type:'button', onClick:()=>{ chosen = sel ? '' : r; drawChips(); }}, r));
+  }); };
+  drawChips();
+  const note = el('textarea',{class:'loss-note', rows:'2', placeholder:'Optional note — competitor name, detail, what would have changed it…'}, deck.lostNote || '');
+  const save = () => {
+    const fresh = DB.decks.find(x => x.id === deckId) || deck;
+    saveDeckPatch(fresh, { lostReason: chosen, lostNote: note.value.trim(),
+      history: pushHist(fresh.history, 'note', chosen ? ('Loss reason: ' + chosen) : 'Loss reason cleared') });
+    closeModal();
+    if (state.view === 'lead' && state.leadId === deckId) renderLead(DB.decks.find(x => x.id === deckId));
+  };
+  const body = el('div',{},
+    el('div',{class:'modal-h'}, 'Why did ' + deck.school + ' close lost?'),
+    el('div',{class:'modal-desc'}, 'Pick the main reason (optional note below). This powers the win/loss view — quick now saves guessing later.'),
+    chips,
+    el('div',{class:'field'}, el('label',{}, 'Note (optional)'), note),
+    el('div',{class:'modal-foot'},
+      el('button',{class:'btn', onClick:closeModal}, 'Skip'),
+      el('button',{class:'btn primary', onClick:save}, 'Save reason')));
+  openModal(body);
 }
 
 /* ---------- Daily digest: "what needs attention today" ---------- */
@@ -7335,6 +7529,10 @@ function weeklyReportData(offset){
   // --- Wins / losses (this week) ---
   const wins = wk.won.slice().sort((a,b)=>dealAmount(b)-dealAmount(a)).map(d => ({ school:d.school, amt:dealAmount(d), rep: repNameOf(team, d) }));
   const losses = wk.lost.map(d => ({ school:d.school, rep: repNameOf(team, d), reason: d.lostReason || d.lossReason || '' }));
+  // "Why we lose" — tally reasons across all closed-lost deals (all time)
+  const lossTallyMap = {};
+  decks.filter(d => dealStage(d)==='closedlost').forEach(d => { const r = (d.lostReason||'').trim() || 'Unspecified'; lossTallyMap[r] = (lossTallyMap[r]||0)+1; });
+  const lossReasons = Object.keys(lossTallyMap).map(k => ({ reason:k, n:lossTallyMap[k] })).sort((a,b)=> b.n - a.n);
 
   // --- At-risk: high-value open deals gone quiet ---
   const thr = nudgeThreshold();
@@ -7429,7 +7627,7 @@ function weeklyReportData(offset){
   return { offset:offset||0, cur, prev, wk, pw, goals, mtd, overall, daysElapsed, daysInMonth, monthStart,
            byStage, openValue, weighted, openCount: open.length, funnel, avgCycle,
            reps, topRep, behindReps, wins, losses, atRisk, upcoming, closingSoon, team, totalDecks: decks.length,
-           trends, plan, bySource, bySize, quietOpen, atRiskTotal, agingBuckets, dataHealth, focus };
+           trends, plan, bySource, bySize, quietOpen, atRiskTotal, agingBuckets, dataHealth, focus, lossReasons };
 }
 
 /* ---- report slide helpers (reuse .rep-* styling inside landscape slides) ---- */
@@ -7691,7 +7889,8 @@ function buildReportSlides(data){
     el('div',{class:'rs-two'},
       el('div',{},
         el('div',{class:'rs-label good'}, 'Wins this week (' + data.wins.length + ')'), winList,
-        data.losses.length ? el('div',{class:'rs-loss'}, el('b',{}, plur(data.losses.length,'loss') + ': '), data.losses.map(l=>l.school + (l.reason?(' ('+l.reason+')'):'')).join(', ')) : null),
+        data.losses.length ? el('div',{class:'rs-loss'}, el('b',{}, plur(data.losses.length,'loss') + ': '), data.losses.map(l=>l.school + (l.reason?(' ('+l.reason+')'):'')).join(', ')) : null,
+        data.lossReasons.length ? el('div',{class:'rs-foot'}, 'Why we lose (all time): ' + data.lossReasons.slice(0,4).map(x=>x.reason + ' ' + x.n).join('  ·  ')) : null),
       el('div',{},
         el('div',{class:'rs-label bad'}, 'At risk — ' + fmtMoneyK(data.atRiskTotal) + ' of pipeline gone quiet'),
         aging, riskList))
