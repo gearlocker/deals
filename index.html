@@ -2526,6 +2526,7 @@
   .login-btn .g-icon { display: inline-flex; width: 18px; height: 18px; }
   .login-err { font-size: 13px; color: var(--accent-dark); margin-top: 18px; min-height: 18px; font-weight: 500; }
   .login-foot { font-size: 12.5px; color: var(--ink-4); margin-top: 26px; }
+  .gate-btn-wrap { display: flex; justify-content: center; margin: 22px 0 6px; min-height: 44px; }
   /* signed-in user chip */
   .user-chip { display: inline-flex; align-items: center; gap: 8px; font: inherit; font-size: 13px; font-weight: 600; color: var(--ink-2); background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px 13px 4px 4px; cursor: pointer; transition: border-color .15s var(--easing); }
   .user-chip:hover { border-color: var(--ink-3); }
@@ -3476,8 +3477,11 @@ function removePersonRec(id){
 
 /* --- Pull the latest shared data from the cloud --- */
 async function refreshFromCloud(){
-  if (!cloudOn()) return;
+  if (!cloudOn()) return {};
   const [decks, team, settings] = await Promise.all([sbList('decks'), sbList('salespeople'), sbList('settings').catch(()=>[])]);
+  // With RLS on, an unauthenticated read returns an empty list (not an error). If everything is empty
+  // and we have no live session, we're almost certainly blocked — DON'T wipe the local cache; signal the caller.
+  if (!decks.length && !team.length && !sbSessionActive()) return { blocked: true };
   decks.sort((a, b) => String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
   DB.decks = decks; persistDecks();
   DB.team = team; persistTeam();
@@ -3493,6 +3497,7 @@ async function refreshFromCloud(){
   if (sequences){ applySequences(sequences); saveJSON(SEQUENCES_KEY, sequencesConfig()); }
   const sources = (settings || []).find(s => s && s.type === 'sources');
   if (sources){ applySources(sources); saveJSON(SOURCES_KEY, sourcesConfig()); }
+  return { blocked: false };
 }
 const uid = (p) => p + Math.random().toString(36).slice(2,8) + Date.now().toString(36).slice(-4);
 const initials = (name) => ((name||'').trim().split(/\s+/).map(w=>w[0]||'').slice(0,2).join('').toUpperCase()) || '–';
@@ -6552,6 +6557,31 @@ async function ensureSupabaseSession(){
   }).then((v)=>{ sbSessionInFlight = null; return v; });
   return sbSessionInFlight;
 }
+// Blocking gate shown when the DB requires a session (RLS) but we don't have one — reliable rendered Google button.
+function showSessionGate(){
+  let gate = document.getElementById('session-gate');
+  if (!gate){ gate = el('div',{id:'session-gate', class:'login-screen'}); document.body.appendChild(gate); }
+  gate.style.display = 'flex'; gate.innerHTML = '';
+  const btnWrap = el('div',{class:'gate-btn-wrap'});
+  const err = el('div',{class:'login-err'});
+  gate.appendChild(el('div',{class:'login-card'},
+    el('span',{class:'brand-mark login-logo', html: (typeof LOGO_IMG_DARK!=='undefined' ? LOGO_IMG_DARK : '')}),
+    el('h1',{class:'login-h'}, 'Confirm your account'),
+    el('p',{class:'login-sub'}, (AUTH && AUTH.email ? ('You’re signed in as ' + AUTH.email + '. ') : '') + 'GearLocker now secures your data per user — confirm your Google account to load your leads.'),
+    btnWrap, err,
+    el('div',{class:'login-foot'}, 'Use your @gearlocker.com account.')));
+  if (!(window.google && google.accounts && google.accounts.id)){ err.textContent = 'Google sign-in is still loading — reload the page.'; return; }
+  try {
+    google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: async (resp)=>{
+      if (!resp || !resp.credential){ err.textContent = 'Sign-in didn’t complete — try again.'; return; }
+      err.textContent = 'Securing your session…';
+      try { await sbExchangeIdToken(resp.credential); gate.remove(); initDashboard(); }
+      catch(e){ err.textContent = 'Couldn’t secure your session: ' + (e && e.message ? e.message : e); }
+    }});
+    google.accounts.id.renderButton(btnWrap, { type:'standard', theme:'filled_blue', size:'large', text:'continue_with', shape:'pill' });
+    try { google.accounts.id.prompt(); } catch(e){}   // also try One Tap silently
+  } catch(e){ err.textContent = 'Couldn’t start Google sign-in — reload the page.'; }
+}
 function renderSecureSessionButton(container){
   if (!initGisId()){ container.appendChild(el('div',{class:'muted', style:'font-size:13px'},'Google sign-in still loading — reload and try again.')); return; }
   try { google.accounts.id.renderButton(container, { type:'standard', theme:'outline', size:'medium', text:'signin_with', shape:'pill' }); }
@@ -6969,11 +6999,13 @@ function setSyncBadge(kind){
 }
 async function initDashboard(){
   loadSbSession();                       // restore any saved Supabase session
-  ensureSupabaseSession().catch(()=>{}); // auto-establish a per-user session on load (silent One Tap auto-select); anon fallback until ready
+  await sbAuthToken();                    // silently refresh an existing session if present (no popup)
   if (cloudOn()){
     setSyncBadge('syncing');
-    try { await refreshFromCloud(); setSyncBadge('online'); }
+    let res = {};
+    try { res = await refreshFromCloud() || {}; setSyncBadge('online'); }
     catch(e){ console.warn('Cloud load failed; using local copy.', e); setSyncBadge('offline'); }
+    if (res.blocked){ setSyncBadge('offline'); showSessionGate(); return; }   // RLS blocked the anon key → get a session first
   } else {
     setSyncBadge('local');
   }
