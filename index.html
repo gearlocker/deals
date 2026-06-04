@@ -2396,6 +2396,10 @@
   .metric-table tfoot td { position: sticky; bottom: 0; font-weight: 700; color: var(--ink); background: var(--paper); border-top: 2px solid var(--border); }
   .mx-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
   .mx-head-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .mx-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin: 4px 0 24px; flex-wrap: wrap; }
+  .mx-tab { font: inherit; font-size: 14.5px; font-weight: 600; color: var(--ink-4); background: none; border: none; border-bottom: 2px solid transparent; padding: 10px 0; margin: 0 24px -1px 0; cursor: pointer; transition: color .15s var(--easing), border-color .15s var(--easing); }
+  .mx-tab:hover { color: var(--ink-2); }
+  .mx-tab.active { color: var(--ink); border-bottom-color: var(--accent); }
   .mx-range { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
   /* Conversion funnel */
   .funnel-overall { font-size: 13px; font-weight: 700; color: var(--ink); }
@@ -6244,7 +6248,8 @@ function renderMetrics(){
   const wonAmt=won.reduce((a,d)=>a+dealAmount(d),0), paidAmt=paid.reduce((a,d)=>a+dealAmount(d),0);
   const openAmt=decks.filter(isOpenDeal).reduce((a,d)=>a+dealAmount(d),0);
   const winRate=(won.length+lost.length)?Math.round(100*won.length/(won.length+lost.length)):null;
-  body.appendChild(el('div',{class:'kpi-row'},
+  // --- build every section once, then place them into the active tab ---
+  const kpiRow = el('div',{class:'kpi-row'},
     kpi('Leads', String(leads.length), 'New leads created in this window (by the lead’s created date).'),
     kpi('Demos', String(demos.length), 'Deals with a demo in this window — the manual “Demo done” date on the lead, or the graded call date if set.'),
     kpi('Verbal commits', String(commits.length), 'Deals whose verbal-commit date falls in this window.'),
@@ -6252,11 +6257,7 @@ function renderMetrics(){
     kpi('Win rate', winRate!=null?winRate+'%':'—', 'Of deals closed in this window, the % won: won ÷ (won + lost).'),
     kpi('Collected', paid.length + (paidAmt?(' · '+fmtUSD(paidAmt)):''), 'Deals marked Paid in this window and the total collected.'),
     kpi('Open pipeline', fmtUSD(openAmt), 'Total annual value of all currently-open deals. A live snapshot — not limited to the date window.')
-  ));
-  body.appendChild(el('div',{class:'metric-grid'}, goalsSection(decks), forecastSection(decks)));
-  body.appendChild(funnelSection(leads, repName));
-  body.appendChild(velocitySection(decks, demos, commits, won, repName));
-  body.appendChild(activitySection(decks, team, inR, repName));
+  );
   const schoolCol = {label:'School', get:d=>d.school};
   const repCol = {label:'Rep', get:d=>repName(d.salespersonId)};
   const amtCol = {label:'Amount', num:true, get:d=>fmtUSD(dealAmount(d)), total:d=>dealAmount(d), totalFmt:fmtUSD};
@@ -6274,9 +6275,30 @@ function renderMetrics(){
       tip:'Won deals, split by rep. $ sums annual value in the month each deal closed; toggle # for the deal count.',
       cols:[ schoolCol, repCol, {label:'Close date', get:d=>fmtDay(closedWonDate(d)), sortVal:d=>closedWonDate(d)}, amtCol ] }
   ];
-  const grid = el('div',{class:'metric-grid'});
-  specs.forEach((spec, idx) => grid.appendChild(dashChartCard(spec, idx, months)));
-  body.appendChild(grid);
+  const chartsGrid = el('div',{class:'metric-grid'});
+  specs.forEach((spec, idx) => chartsGrid.appendChild(dashChartCard(spec, idx, months)));
+
+  const tab = state.metricsTab || 'overview';
+  body.appendChild(metricsTabBar());
+  const content = el('div',{class:'mx-content'}); body.appendChild(content);
+  if (tab === 'overview'){
+    content.appendChild(kpiRow);
+    content.appendChild(el('div',{class:'metric-grid'}, goalsSection(decks), forecastSection(decks)));
+  } else if (tab === 'trends'){
+    content.appendChild(kpiRow);
+    content.appendChild(chartsGrid);
+  } else if (tab === 'funnel'){
+    content.appendChild(funnelSection(leads, repName));
+    content.appendChild(velocitySection(decks, demos, commits, won, repName));
+  } else if (tab === 'activity'){
+    content.appendChild(activitySection(decks, team, inR, repName));
+  }
+}
+function metricsTabBar(){
+  const tabs = [['overview','Overview'],['trends','Trends'],['funnel','Funnel'],['activity','Activity']];
+  const active = state.metricsTab || 'overview';
+  return el('div',{class:'mx-tabs'}, ...tabs.map(([k,lab]) =>
+    el('button',{class:'mx-tab'+(active===k?' active':''), type:'button', onClick:()=>{ state.metricsTab=k; renderMetrics(); window.scrollTo(0,0); }}, lab)));
 }
 // Conversion funnel — of the leads created in the window, how many reached each stage.
 function funnelSection(leads, repName){
