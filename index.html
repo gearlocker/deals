@@ -2404,7 +2404,24 @@
   .mx-dash { color: var(--ink-4); }
   .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
   .metric-card { background: var(--paper); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 20px 22px 18px; }
-  .metric-h { font-size: 14px; font-weight: 700; color: var(--ink); margin: 0 0 18px; display: flex; align-items: center; gap: 6px; }
+  .metric-h { font-size: 14px; font-weight: 700; color: var(--ink); margin: 0 0 18px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; row-gap: 8px; }
+  .metric-h-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .chart-mode { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+  .chart-mode-btn { font: inherit; font-size: 12px; font-weight: 700; color: var(--ink-4); background: var(--paper); border: none; padding: 4px 11px; cursor: pointer; line-height: 1.4; }
+  .chart-mode-btn + .chart-mode-btn { border-left: 1px solid var(--border); }
+  .chart-mode-btn.active { background: var(--ink); color: #fff; }
+  .chart-modal-overlay { position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,.5); display: flex; align-items: flex-start; justify-content: center; padding: 40px 24px; overflow: auto; }
+  .chart-modal { background: var(--paper); border-radius: 16px; width: 100%; max-width: 1000px; padding: 26px 30px 30px; box-shadow: 0 24px 70px rgba(0,0,0,.35); }
+  .chart-modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 22px; }
+  .chart-modal-title { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; color: var(--ink); margin: 0; }
+  .chart-modal-sub { font-size: 13px; color: var(--ink-4); margin: 6px 0 0; max-width: 600px; line-height: 1.5; }
+  .chart-modal-head-r { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  .chart-modal-close { background: none; border: none; font-size: 17px; color: var(--ink-3); cursor: pointer; padding: 4px 9px; border-radius: 8px; line-height: 1; }
+  .chart-modal-close:hover { background: var(--wash); color: var(--ink); }
+  .chart-modal-chart { margin-bottom: 24px; }
+  .chart-modal-chart .chart-bars { height: 300px; }
+  .chart-modal-tableh { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-4); margin-bottom: 10px; }
+  .chart-modal .metric-table-scroll { max-height: 420px; }
   .chart { width: 100%; }
   .chart-bars { display: flex; align-items: flex-end; gap: 10px; height: 168px; }
   .chart-col { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; min-width: 0; }
@@ -6024,6 +6041,50 @@ function metricTable(cols, decks){
 const INFO_SVG = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="11" x2="12" y2="16"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>';
 function infoTip(text){ return el('span',{class:'info-tip', 'data-tip':text, html:INFO_SVG}); }   // custom CSS tooltip (reliable, wraps)
 function kpi(label, value, tip){ return el('div',{class:'kpi'}, el('div',{class:'kpi-val'}, value), el('div',{class:'kpi-lbl'}, label, tip?infoTip(tip):null)); }
+// --- Chart spec model: each chart renders as count (#) or dollars ($), and expands full-screen with its records ---
+function chartMode(idx, spec){ return (state.chartModes && state.chartModes[idx]) || spec.defaultMode || 'count'; }
+function specSeries(spec, months, mode){ return bucketSeries(spec.decks, spec.dateFn, spec.groupFn, months, mode==='amount' ? d=>dealAmount(d) : null); }
+function chartModeToggle(idx, spec, onChange){
+  const mode = chartMode(idx, spec);
+  const set = m => { state.chartModes = state.chartModes || {}; state.chartModes[idx] = m; onChange(); };
+  return el('div',{class:'chart-mode'},
+    el('button',{class:'chart-mode-btn'+(mode==='count'?' active':''), type:'button', title:'Show deal count', onClick:()=>set('count')}, '#'),
+    el('button',{class:'chart-mode-btn'+(mode==='amount'?' active':''), type:'button', title:'Show dollar value', onClick:()=>set('amount')}, '$'));
+}
+function dashChartCard(spec, idx, months){
+  const mode = chartMode(idx, spec), series = specSeries(spec, months, mode), fmt = mode==='amount'?fmtUSD:null;
+  const has = series.some(s=>s.data.some(v=>v));
+  const card = el('div',{class:'metric-card'});
+  card.appendChild(el('div',{class:'metric-h'},
+    el('span',{}, spec.title), spec.tip?infoTip(spec.tip):null,
+    el('div',{class:'metric-h-actions'},
+      chartModeToggle(idx, spec, ()=>{ card.replaceWith(dashChartCard(spec, idx, months)); }),
+      el('button',{class:'metric-data-toggle', type:'button', onClick:()=>openChartModal(spec, idx)}, 'View ⤢'))));
+  card.appendChild(has ? stackedChart(months, series, fmt) : el('div',{class:'lead-empty', style:'padding:30px 4px'},'No data in this window yet.'));
+  if (has) card.appendChild(chartLegend(series));
+  return card;
+}
+function openChartModal(spec, idx){
+  const overlay = el('div',{class:'chart-modal-overlay'});
+  const close = ()=>{ overlay.remove(); document.removeEventListener('keydown', onKey); if (state.view==='metrics') renderMetrics(); };
+  const onKey = e => { if (e.key==='Escape') close(); };
+  document.addEventListener('keydown', onKey);
+  overlay.addEventListener('click', e=>{ if (e.target===overlay) close(); });
+  const content = el('div',{class:'chart-modal'});
+  const draw = ()=>{
+    content.innerHTML='';
+    const months = metricsMonths(), mode = chartMode(idx, spec), series = specSeries(spec, months, mode), fmt = mode==='amount'?fmtUSD:null;
+    const has = series.some(s=>s.data.some(v=>v));
+    content.appendChild(el('div',{class:'chart-modal-head'},
+      el('div',{class:'chart-modal-head-l'}, el('h2',{class:'chart-modal-title'}, spec.title), spec.tip?el('p',{class:'chart-modal-sub'}, spec.tip):null),
+      el('div',{class:'chart-modal-head-r'}, chartModeToggle(idx, spec, draw), el('button',{class:'chart-modal-close', type:'button', title:'Close', onClick:close}, '✕'))));
+    content.appendChild(el('div',{class:'chart-modal-chart'}, has ? stackedChart(months, series, fmt) : el('div',{class:'lead-empty', style:'padding:50px'},'No data in this window yet.'), has?chartLegend(series):null));
+    content.appendChild(el('div',{class:'chart-modal-tablewrap'}, el('div',{class:'chart-modal-tableh'},'Every record behind this chart'), metricTable(spec.cols, spec.decks)));
+  };
+  draw();
+  overlay.appendChild(content);
+  document.body.appendChild(overlay);
+}
 function lostDate(d){ if (d.stageDates && d.stageDates.closedlost) return d.stageDates.closedlost; return dealStage(d)==='closedlost' ? (d.updatedAt||d.createdAt) : null; }
 function monthsBetween(fromStr, toStr){
   const out=[]; const f=new Date(fromStr+'T00:00:00'), t=new Date(toStr+'T00:00:00');
@@ -6086,17 +6147,26 @@ function renderMetrics(){
     kpi('Collected', paid.length + (paidAmt?(' · '+fmtUSD(paidAmt)):''), 'Deals marked Paid in this window and the total collected.'),
     kpi('Open pipeline', fmtUSD(openAmt), 'Total annual value of all currently-open deals. A live snapshot — not limited to the date window.')
   ));
-  const C = { school:{label:'School', get:d=>d.school}, rep:{label:'Rep', get:d=>repName(d.salespersonId)} };
-  body.appendChild(el('div',{class:'metric-grid'},
-    chartCard('Leads by month — by source', months, bucketSeries(decks, d=>d.createdAt, d=>sourceLabel(d)||'Other', months), null, 'Counts each lead in the month it was created, split by lead source (and sub-source).',
-      { decks: leads.slice(), cols:[ C.school, {label:'Source', get:d=>sourceLabel(d)||'—'}, {label:'Created', get:d=>fmtDay(d.createdAt), sortVal:d=>d.createdAt} ] }),
-    chartCard('Demos by month — by rep', months, bucketSeries(demos, demoDate, d=>repName(d.salespersonId), months), null, 'Counts each demo in the month it happened, split by rep.',
-      { decks: demos.slice(), cols:[ C.school, C.rep, {label:'Demo date', get:d=>fmtDay(demoDate(d)), sortVal:d=>demoDate(d)} ] }),
-    chartCard('Verbal commits by month — by rep', months, bucketSeries(decks, committedDate, d=>repName(d.salespersonId), months), null, 'Counts each verbal commit in the month it was reached, split by rep.',
-      { decks: commits.slice(), cols:[ C.school, C.rep, {label:'Commit date', get:d=>fmtDay(committedDate(d)), sortVal:d=>committedDate(d)} ] }),
-    chartCard('Sales by month — by rep ($)', months, bucketSeries(won, closedWonDate, d=>repName(d.salespersonId), months, d=>dealAmount(d)), fmtUSD, 'Sums won-deal annual value in the month each deal closed, split by rep.',
-      { decks: won.slice(), cols:[ C.school, C.rep, {label:'Close date', get:d=>fmtDay(closedWonDate(d)), sortVal:d=>closedWonDate(d)}, {label:'Amount', num:true, get:d=>fmtUSD(dealAmount(d)), total:d=>dealAmount(d), totalFmt:fmtUSD} ] })
-  ));
+  const schoolCol = {label:'School', get:d=>d.school};
+  const repCol = {label:'Rep', get:d=>repName(d.salespersonId)};
+  const amtCol = {label:'Amount', num:true, get:d=>fmtUSD(dealAmount(d)), total:d=>dealAmount(d), totalFmt:fmtUSD};
+  const specs = [
+    { title:'Leads by month — by source', decks: leads.slice(), dateFn:d=>d.createdAt, groupFn:d=>sourceLabel(d)||'Other', defaultMode:'count',
+      tip:'Each lead counted in the month it was created, split by source (and sub-source). Toggle $ to sum forecast value instead.',
+      cols:[ schoolCol, {label:'Source', get:d=>sourceLabel(d)||'—'}, repCol, {label:'Created', get:d=>fmtDay(d.createdAt), sortVal:d=>d.createdAt}, amtCol ] },
+    { title:'Demos by month — by rep', decks: demos.slice(), dateFn:demoDate, groupFn:d=>repName(d.salespersonId), defaultMode:'count',
+      tip:'Each demo counted in the month it happened (the “Demo done” date, or the graded-call date), split by rep. Toggle $ for forecast value.',
+      cols:[ schoolCol, repCol, {label:'Demo date', get:d=>fmtDay(demoDate(d)), sortVal:d=>demoDate(d)}, amtCol ] },
+    { title:'Verbal commits by month — by rep', decks: commits.slice(), dateFn:committedDate, groupFn:d=>repName(d.salespersonId), defaultMode:'count',
+      tip:'Each verbal commit counted in the month it was reached, split by rep. Toggle $ for forecast value.',
+      cols:[ schoolCol, repCol, {label:'Commit date', get:d=>fmtDay(committedDate(d)), sortVal:d=>committedDate(d)}, amtCol ] },
+    { title:'Sales by month — by rep', decks: won.slice(), dateFn:closedWonDate, groupFn:d=>repName(d.salespersonId), defaultMode:'amount',
+      tip:'Won deals, split by rep. $ sums annual value in the month each deal closed; toggle # for the deal count.',
+      cols:[ schoolCol, repCol, {label:'Close date', get:d=>fmtDay(closedWonDate(d)), sortVal:d=>closedWonDate(d)}, amtCol ] }
+  ];
+  const grid = el('div',{class:'metric-grid'});
+  specs.forEach((spec, idx) => grid.appendChild(dashChartCard(spec, idx, months)));
+  body.appendChild(grid);
 }
 function setDeckStage(deckId, newStage){
   const cur=DB.decks.find(x=>x.id===deckId); if(!cur) return;
