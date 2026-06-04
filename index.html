@@ -2445,6 +2445,15 @@
   .goal-status { font-size: 12px; font-weight: 700; }
   .goal-status.ok { color: #1f7d45; }
   .goal-status.warn { color: var(--accent-dark, #c2302b); }
+  /* Goals settings form */
+  .goals-settings { display: flex; flex-direction: column; gap: 16px; max-width: 460px; margin-top: 6px; }
+  .goal-set-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .goal-set-label { font-size: 14px; font-weight: 600; color: var(--ink-2); }
+  .goal-set-field { display: inline-flex; align-items: center; gap: 6px; }
+  .goal-set-pre { font-size: 14px; color: var(--ink-4); }
+  .goal-set-suf { font-size: 13px; color: var(--ink-4); }
+  .goal-set-input { width: 130px; font: inherit; font-size: 14px; padding: 9px 11px; border: 1px solid var(--border); border-radius: var(--radius-sm); text-align: right; }
+  .goal-set-input:focus { outline: none; border-color: var(--accent); }
   @media (max-width: 720px){ .velocity-stats { grid-template-columns: repeat(2, 1fr); } .funnel-row { grid-template-columns: 90px 1fr; } .funnel-conv { grid-column: 2; padding-left: 0; } }
   .mx-range-btn { font: inherit; font-size: 13px; font-weight: 600; color: var(--ink-3); background: var(--paper); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 12px; cursor: pointer; }
   .mx-range-btn:hover { border-color: var(--ink-3); }
@@ -4170,7 +4179,7 @@ function renderSettingsTabs(){
   const tabs = document.getElementById('settings-tabs');
   if (!tabs) return;
   tabs.innerHTML = '';
-  [['pricing','Pricing'],['sources','Lead sources'],['team','Team'],['rubric','Call rubric'],['automation','Automation'],['playbooks','Playbooks'],['sequences','Sequences'],['google','Google sync']].forEach(([key,label]) => {
+  [['pricing','Pricing'],['goals','Goals'],['sources','Lead sources'],['team','Team'],['rubric','Call rubric'],['automation','Automation'],['playbooks','Playbooks'],['sequences','Sequences'],['google','Google sync']].forEach(([key,label]) => {
     tabs.appendChild(el('button',{ class:'settings-tab' + (settingsTab===key?' active':''), type:'button', onClick:()=>{ settingsTab = key; renderSettingsPage(); window.scrollTo(0,0); } }, label));
   });
 }
@@ -4184,6 +4193,7 @@ function renderSettingsPage(){
   else if (settingsTab === 'playbooks') body.appendChild(renderPlaybookSettings());
   else if (settingsTab === 'sequences') body.appendChild(renderSequenceSettings());
   else if (settingsTab === 'sources') body.appendChild(renderSourceSettings());
+  else if (settingsTab === 'goals') body.appendChild(renderGoalsSettings());
   else if (settingsTab === 'google') body.appendChild(renderGoogleSettings());
   else {
     body.appendChild(el('p',{class:'settings-subtitle'}, 'Update pricing here and it flows into every deck’s pricing slide and proposal. Saved for the whole team.'));
@@ -4453,6 +4463,32 @@ function renderSourceSettings(){
   const reset = () => { if (confirm('Reset lead sources to defaults?')){ saveSources(JSON.parse(JSON.stringify(DEFAULT_SOURCES))); renderSettingsPage(); } };
   wrap.appendChild(el('div',{class:'settings-actions'},
     el('button',{class:'btn ghost sm', type:'button', onClick:reset}, 'Reset to defaults'),
+    el('div',{style:'display:flex;align-items:center;gap:16px'}, status, el('button',{class:'btn primary', type:'button', onClick:save}, 'Save'))));
+  return wrap;
+}
+
+function renderGoalsSettings(){
+  const wrap = el('div',{});
+  wrap.appendChild(el('p',{class:'settings-subtitle'}, 'Set your team’s monthly targets. The Dashboard tracks this month’s actuals against these and shows whether you’re ahead of pace. Saved for the whole team.'));
+  const status = el('span',{class:'settings-saved'}, '');
+  const draft = Object.assign({}, GOALS);
+  const fields = [
+    { key:'leads', label:'New leads per month', placeholder:'e.g. 40' },
+    { key:'demos', label:'Demos per month', placeholder:'e.g. 12' },
+    { key:'sales', label:'Sales ($) per month', placeholder:'e.g. 50000', money:true }
+  ];
+  const form = el('div',{class:'goals-settings'});
+  fields.forEach(f => {
+    const inp = el('input',{type:'number', min:'0', step:'1', class:'goal-set-input', value:(draft[f.key]||''), placeholder:f.placeholder});
+    inp.addEventListener('input', ()=>{ draft[f.key] = Number(inp.value)||0; });
+    form.appendChild(el('div',{class:'goal-set-row'},
+      el('label',{class:'goal-set-label'}, f.label),
+      el('div',{class:'goal-set-field'}, f.money ? el('span',{class:'goal-set-pre'},'$') : null, inp, f.money ? null : el('span',{class:'goal-set-suf'}, '/mo'))));
+  });
+  wrap.appendChild(form);
+  const save = ()=>{ saveGoals(draft); status.textContent = 'Saved ✓'; setTimeout(()=>status.textContent='', 2500); };
+  wrap.appendChild(el('div',{class:'settings-actions'},
+    el('button',{class:'btn ghost sm', type:'button', onClick:()=>{ saveGoals({leads:0,demos:0,sales:0}); renderSettingsPage(); }}, 'Clear targets'),
     el('div',{style:'display:flex;align-items:center;gap:16px'}, status, el('button',{class:'btn primary', type:'button', onClick:save}, 'Save'))));
   return wrap;
 }
@@ -6393,7 +6429,14 @@ function goalsSection(decks){
   const pace = Math.round(100*now.getDate()/dim);
   const card = el('div',{class:'metric-card'});
   card.appendChild(el('div',{class:'metric-h'}, el('span',{}, 'Goals — ' + now.toLocaleDateString(undefined,{month:'long'})),
-    infoTip('This month’s actuals vs your monthly targets. The vertical marker is your pace — you’re ' + pace + '% through the month, so a bar past the marker is ahead. Type a target to set it (saved for the team).')));
+    infoTip('This month’s actuals vs the monthly targets set in Settings → Goals. The vertical marker is your pace — you’re ' + pace + '% through the month, so a bar past the marker is ahead.'),
+    el('div',{class:'metric-h-actions'}, el('button',{class:'metric-data-toggle', type:'button', onClick:()=>openSettingsPage('goals')}, 'Edit goals'))));
+  if (!(Number(GOALS.leads) || Number(GOALS.demos) || Number(GOALS.sales))){
+    card.appendChild(el('div',{class:'lead-empty', style:'padding:20px 4px'},
+      el('div',{style:'margin-bottom:12px'}, 'No monthly targets set yet.'),
+      el('button',{class:'btn sm primary', type:'button', onClick:()=>openSettingsPage('goals')}, 'Set targets in Settings')));
+    return card;
+  }
   const metrics = [
     { key:'leads', label:'New leads', actual:leadsM, fmt:String },
     { key:'demos', label:'Demos', actual:demosM, fmt:String },
@@ -6404,10 +6447,7 @@ function goalsSection(decks){
     const target = Number(GOALS[m.key])||0;
     const pct = target ? Math.min(100, Math.round(100*m.actual/target)) : 0;
     const ahead = target && pct >= pace;
-    const inp = el('input',{type:'number', min:'0', class:'goal-input', value: target||'', placeholder:'set'});
-    inp.addEventListener('change', ()=>{ const g = Object.assign({}, GOALS); g[m.key] = Number(inp.value)||0; saveGoals(g); renderMetrics(); });
-    inp.addEventListener('click', e=>e.stopPropagation());
-    wrap.appendChild(el('div',{class:'goal-row'},
+    wrap.appendChild(el('div',{class:'goal-row' + (target?'':' goal-row-untargeted')},
       el('div',{class:'goal-top'},
         el('span',{class:'goal-label'}, m.label),
         el('span',{class:'goal-val'}, m.fmt(m.actual) + (target ? (' / ' + m.fmt(target)) : ''))),
@@ -6415,8 +6455,8 @@ function goalsSection(decks){
         el('div',{class:'goal-fill ' + (target ? (ahead?'ahead':'behind') : 'none'), style:'width:'+pct+'%'}),
         target ? el('div',{class:'goal-pace', style:'left:'+pace+'%'}) : null),
       el('div',{class:'goal-foot'},
-        el('span',{class:'goal-target-wrap'}, 'Target ', inp),
-        target ? el('span',{class:'goal-status ' + (ahead?'ok':'warn')}, pct + '% · pace ' + pace + '%') : el('span',{class:'muted'}, 'no target set'))));
+        el('span',{class:'muted'}, target ? ('Target ' + m.fmt(target)) : 'no target set'),
+        target ? el('span',{class:'goal-status ' + (ahead?'ok':'warn')}, pct + '% · pace ' + pace + '%') : null)));
   });
   card.appendChild(wrap);
   return card;
