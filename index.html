@@ -1984,6 +1984,18 @@
   .lead-task:first-child { border-top: none; }
   .lead-task-cb { display: flex; align-items: center; gap: 9px; font-size: 14px; color: var(--ink); cursor: pointer; }
   .task-auto { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-4); background: var(--wash, #f4f3ef); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+  .pb-list { display: flex; flex-direction: column; gap: 14px; }
+  .pb-card { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px 18px; background: var(--paper); }
+  .pb-stage { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 12px; }
+  .pb-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+  .pb-row { display: flex; align-items: center; gap: 8px; }
+  .pb-text { flex: 1 1 auto; min-width: 0; font: inherit; font-size: 13.5px; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  .pb-text:focus, .pb-due:focus { outline: none; border-color: var(--accent); }
+  .pb-due { width: 56px; font: inherit; font-size: 13.5px; padding: 7px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); text-align: center; }
+  .pb-due-lbl { font-size: 12px; color: var(--ink-4); white-space: nowrap; }
+  .pb-x { background: none; border: none; color: var(--ink-4); cursor: pointer; font-size: 14px; padding: 4px 6px; flex-shrink: 0; }
+  .pb-x:hover { color: var(--accent); }
+  .pb-empty { font-size: 12.5px; color: var(--ink-4); padding: 2px 0; }
   .lead-task.done .lead-task-cb { color: var(--ink-4); text-decoration: line-through; }
   .lead-task-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
   .lead-task-due { font-size: 12px; color: var(--ink-4); font-weight: 600; }
@@ -2907,6 +2919,37 @@ function saveAutomation(cfg){
   saveJSON(AUTOMATION_KEY, automationConfig());
   if (cloudOn()) sbUpsert('settings', 'automation', automationConfig()).catch(e => console.warn('automation sync failed', e));
 }
+
+/* ---- Stage playbooks (Settings → Playbooks) — editable per-stage task checklists ---- */
+const PLAYBOOKS_KEY = 'gl_playbooks_v1';
+const DEFAULT_PLAYBOOKS = {
+  newlead:       [ { text:'Reach out to book a demo', dueDays:1 } ],
+  demoscheduled: [ { text:'Send a confirmation + calendar invite', dueDays:0 }, { text:'Prep for the demo — review their programs & enrollment', dueDays:1 } ],
+  noshow:        [ { text:'Send a reschedule note and re-book the demo', dueDays:1 } ],
+  democompleted: [ { text:'Send the recap + proposal', dueDays:1 }, { text:'Build the quote (enrollment, programs, pricing)', dueDays:1 }, { text:'Follow up on next steps', dueDays:4 } ],
+  verbalcommit:  [ { text:'Send the agreement to sign', dueDays:1 }, { text:'Confirm start date & onboarding plan', dueDays:2 }, { text:'Follow up for signature', dueDays:5 } ],
+  closedwon:     [ { text:'Kick off onboarding — schedule the setup call', dueDays:1 }, { text:'Send the welcome email + onboarding checklist', dueDays:1 }, { text:'Provision their account', dueDays:2 }, { text:'Schedule a 30-day check-in', dueDays:30 } ],
+  closedlost:    [ { text:'Note the lost reason', dueDays:0 }, { text:'Add to nurture — re-engage', dueDays:90 } ]
+};
+let PLAYBOOKS = JSON.parse(JSON.stringify(DEFAULT_PLAYBOOKS));
+function playbooksConfig(){ return { type:'playbooks', stages: PLAYBOOKS }; }
+function applyPlaybooks(cfg){
+  if (cfg && cfg.stages && typeof cfg.stages === 'object'){
+    const out = {};
+    Object.keys(DEFAULT_PLAYBOOKS).forEach(k => {
+      const arr = cfg.stages[k];
+      out[k] = Array.isArray(arr)
+        ? arr.map(t => ({ text:String(t.text||'').trim(), dueDays:(t.dueDays===''||t.dueDays==null)?null:(Number(t.dueDays)||0) })).filter(t => t.text)
+        : (DEFAULT_PLAYBOOKS[k] || []).slice();
+    });
+    PLAYBOOKS = out;
+  }
+}
+function savePlaybooks(stages){
+  applyPlaybooks({ stages: stages });
+  saveJSON(PLAYBOOKS_KEY, playbooksConfig());
+  if (cloudOn()) sbUpsert('settings', 'playbooks', playbooksConfig()).catch(e => console.warn('playbooks sync failed', e));
+}
 function isRealSis(sis) { return sis && sis !== 'Other / Not sure'; }
 function fmtPayback(year1, totalReturn) {
   if (!totalReturn || totalReturn <= 0) return '—';
@@ -3019,6 +3062,7 @@ const PRICING_DEFAULTS = pricingConfig();    // snapshot the hardcoded defaults 
 applyPricing(loadJSON(PRICING_KEY, null));   // restore saved pricing (cloud copy loads in refreshFromCloud)
 applyRubric(loadJSON(RUBRIC_KEY, null));     // restore saved grading rubric
 applyAutomation(loadJSON(AUTOMATION_KEY, null));   // restore automation toggles
+applyPlaybooks(loadJSON(PLAYBOOKS_KEY, null));      // restore stage playbooks (cloud copy loads in refreshFromCloud)
 function getDecks(){ return DB.decks; }
 function getTeam(){ return DB.team; }
 function persistDecks(){ saveJSON(DECKS_KEY, DB.decks); }
@@ -3071,6 +3115,8 @@ async function refreshFromCloud(){
   if (rubric){ applyRubric(rubric); saveJSON(RUBRIC_KEY, rubricConfig()); }
   const automation = (settings || []).find(s => s && s.type === 'automation');
   if (automation){ applyAutomation(automation); saveJSON(AUTOMATION_KEY, automationConfig()); }
+  const playbooks = (settings || []).find(s => s && s.type === 'playbooks');
+  if (playbooks){ applyPlaybooks(playbooks); saveJSON(PLAYBOOKS_KEY, playbooksConfig()); }
 }
 const uid = (p) => p + Math.random().toString(36).slice(2,8) + Date.now().toString(36).slice(-4);
 const initials = (name) => ((name||'').trim().split(/\s+/).map(w=>w[0]||'').slice(0,2).join('').toUpperCase()) || '–';
@@ -3117,20 +3163,11 @@ const STAGES = [
   { key:'closedwon',     label:'Closed Won',         short:'Won' },
   { key:'closedlost',    label:'Closed Lost',        short:'Lost' }
 ];
-// When a deal first enters a stage, auto-create this checklist (once per deal per stage). dueDays = offset from today.
-const STAGE_PLAYBOOKS = {
-  newlead:       [ { text:'Reach out to book a demo', dueDays:1 } ],
-  demoscheduled: [ { text:'Send a confirmation + calendar invite', dueDays:0 }, { text:'Prep for the demo — review their programs & enrollment', dueDays:1 } ],
-  noshow:        [ { text:'Send a reschedule note and re-book the demo', dueDays:1 } ],
-  democompleted: [ { text:'Send the recap + proposal', dueDays:1 }, { text:'Build the quote (enrollment, programs, pricing)', dueDays:1 }, { text:'Follow up on next steps', dueDays:4 } ],
-  verbalcommit:  [ { text:'Send the agreement to sign', dueDays:1 }, { text:'Confirm start date & onboarding plan', dueDays:2 }, { text:'Follow up for signature', dueDays:5 } ],
-  closedwon:     [ { text:'Kick off onboarding — schedule the setup call', dueDays:1 }, { text:'Send the welcome email + onboarding checklist', dueDays:1 }, { text:'Provision their account', dueDays:2 }, { text:'Schedule a 30-day check-in', dueDays:30 } ],
-  closedlost:    [ { text:'Note the lost reason', dueDays:0 }, { text:'Add to nurture — re-engage', dueDays:90 } ]
-};
 // Returns {tasks, autoFired, history, count} to merge into the deck, or null if nothing to do.
+// The editable checklists live in PLAYBOOKS (Settings → Playbooks; defaults in DEFAULT_PLAYBOOKS).
 function applyStageAutomation(deck, newStage){
   if (!AUTOMATION.stagePlaybooks) return null;
-  const pb = STAGE_PLAYBOOKS[newStage]; if (!pb || !pb.length) return null;
+  const pb = PLAYBOOKS[newStage]; if (!pb || !pb.length) return null;
   const fired = Object.assign({}, deck.autoFired || {});
   if (fired[newStage]) return null;   // only fire a stage's playbook once per deal
   fired[newStage] = new Date().toISOString();
@@ -3581,7 +3618,7 @@ function renderSettingsTabs(){
   const tabs = document.getElementById('settings-tabs');
   if (!tabs) return;
   tabs.innerHTML = '';
-  [['pricing','Pricing'],['rubric','Call rubric'],['team','Team'],['automation','Automation'],['google','Google sync']].forEach(([key,label]) => {
+  [['pricing','Pricing'],['rubric','Call rubric'],['team','Team'],['automation','Automation'],['playbooks','Playbooks'],['google','Google sync']].forEach(([key,label]) => {
     tabs.appendChild(el('button',{ class:'settings-tab' + (settingsTab===key?' active':''), type:'button', onClick:()=>{ settingsTab = key; renderSettingsPage(); window.scrollTo(0,0); } }, label));
   });
 }
@@ -3592,6 +3629,7 @@ function renderSettingsPage(){
   if (settingsTab === 'rubric') body.appendChild(renderRubricEditor());
   else if (settingsTab === 'team') body.appendChild(renderTeamSettings());
   else if (settingsTab === 'automation') body.appendChild(renderAutomationSettings());
+  else if (settingsTab === 'playbooks') body.appendChild(renderPlaybookSettings());
   else if (settingsTab === 'google') body.appendChild(renderGoogleSettings());
   else {
     body.appendChild(el('p',{class:'settings-subtitle'}, 'Update pricing here and it flows into every deck’s pricing slide and proposal. Saved for the whole team.'));
@@ -3700,6 +3738,48 @@ function renderAutomationSettings(){
       el('div',{style:'display:flex;align-items:center;gap:16px'}, status, el('button',{class:'btn primary', type:'button', onClick:save},'Save'))
     )
   );
+}
+
+function renderPlaybookSettings(){
+  const draft = JSON.parse(JSON.stringify(PLAYBOOKS));
+  Object.keys(DEFAULT_PLAYBOOKS).forEach(k => { if (!Array.isArray(draft[k])) draft[k] = []; });
+  const wrap = el('div',{});
+  wrap.appendChild(el('p',{class:'settings-subtitle'}, 'Customize the task checklist auto-created when a deal first enters each stage. Changes apply to future stage moves; existing tasks aren’t affected. Saved for the whole team. (Turn the whole feature on/off under Automation.)'));
+  const status = el('span',{class:'settings-saved'}, '');
+  const bodyEl = el('div',{class:'pb-list'});
+  const draw = () => {
+    bodyEl.innerHTML = '';
+    STAGES.forEach(s => {
+      const rows = el('div',{class:'pb-rows'});
+      (draft[s.key] || []).forEach((t, idx) => {
+        const ti = el('input',{type:'text', class:'pb-text', placeholder:'Task…', value: t.text || ''});
+        ti.addEventListener('input', () => { draft[s.key][idx].text = ti.value; });
+        const di = el('input',{type:'number', class:'pb-due', min:'0', step:'1', value: (t.dueDays==null?'':t.dueDays)});
+        di.addEventListener('input', () => { draft[s.key][idx].dueDays = di.value==='' ? null : (Number(di.value)||0); });
+        rows.appendChild(el('div',{class:'pb-row'}, ti,
+          el('span',{class:'pb-due-lbl'},'due in'), di, el('span',{class:'pb-due-lbl'},'days'),
+          el('button',{class:'pb-x', type:'button', title:'Remove task', onClick:()=>{ draft[s.key].splice(idx,1); draw(); }}, '✕')));
+      });
+      if (!(draft[s.key]||[]).length) rows.appendChild(el('div',{class:'pb-empty'}, 'No tasks for this stage.'));
+      bodyEl.appendChild(el('div',{class:'pb-card'},
+        el('div',{class:'pb-stage'}, el('span',{class:'stage-chip stage-'+s.key}, stageMeta(s.key).short), s.label),
+        rows,
+        el('button',{class:'btn ghost sm', type:'button', onClick:()=>{ (draft[s.key]=draft[s.key]||[]).push({ text:'', dueDays:1 }); draw(); }}, '+ Add task')));
+    });
+  };
+  draw();
+  wrap.appendChild(bodyEl);
+  const save = () => {
+    const stages = {};
+    Object.keys(DEFAULT_PLAYBOOKS).forEach(k => { stages[k] = (draft[k]||[]).map(t => ({ text:String(t.text||'').trim(), dueDays:t.dueDays })).filter(t => t.text); });
+    savePlaybooks(stages);
+    status.textContent = 'Saved ✓'; setTimeout(()=>status.textContent='', 2500);
+  };
+  const reset = () => { savePlaybooks(JSON.parse(JSON.stringify(DEFAULT_PLAYBOOKS))); renderSettingsPage(); };
+  wrap.appendChild(el('div',{class:'settings-actions'},
+    el('button',{class:'btn ghost sm', type:'button', onClick:reset}, 'Reset to defaults'),
+    el('div',{style:'display:flex;align-items:center;gap:16px'}, status, el('button',{class:'btn primary', type:'button', onClick:save}, 'Save'))));
+  return wrap;
 }
 
 /* ---------- Team performance / leaderboard ---------- */
