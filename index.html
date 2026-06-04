@@ -2048,6 +2048,30 @@
   .lead-ai-spin { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: lead-ai-spin .7s linear infinite; flex-shrink: 0; }
   @keyframes lead-ai-spin { to { transform: rotate(360deg); } }
   .lead-ai-err { font-size: 13px; color: var(--ink-4); line-height: 1.5; }
+  /* onboarding */
+  .onb { width: 100%; }
+  .onb-head { margin-bottom: 18px; }
+  .onb-title { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 6px; }
+  .onb-sub { font-size: 14px; color: var(--ink-3); margin: 0; line-height: 1.5; }
+  .onb-row { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 16px; margin-bottom: 10px; background: #fff; }
+  .onb-row.done { background: var(--wash, #f7f6f3); }
+  .onb-row-top { display: flex; align-items: flex-start; gap: 12px; }
+  .onb-check { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--border); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+  .onb-check.on { background: #1f9d55; border-color: #1f9d55; }
+  .onb-rbody { flex: 1 1 auto; min-width: 0; }
+  .onb-rtitle { font-size: 14.5px; font-weight: 700; color: var(--ink); }
+  .onb-rdesc { font-size: 12.5px; color: var(--ink-4); margin-top: 2px; line-height: 1.45; }
+  .onb-raction { flex-shrink: 0; }
+  .onb-done-tag { font-size: 12px; font-weight: 700; color: #1f9d55; }
+  .onb-below { margin-top: 12px; padding-left: 34px; }
+  .onb-inputrow { display: flex; gap: 8px; }
+  .onb-input { flex: 1 1 auto; font: inherit; font-size: 14px; padding: 8px 11px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  .onb-input:focus { outline: none; border-color: var(--accent); }
+  .onb-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; }
+  .onb-foot-note { font-size: 12.5px; color: var(--ink-4); }
+  .topnav-setup { display: inline-flex; align-items: center; gap: 7px; background: #fff5ec; border: 1px solid #f3c89b; color: #b5651a; border-radius: 999px; cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 700; padding: 6px 12px; }
+  .topnav-setup:hover { background: #ffe9d6; }
+  .topnav-setup-dot { width: 7px; height: 7px; border-radius: 50%; background: #e8852a; flex-shrink: 0; }
   .lead-docs { display: flex; flex-direction: column; gap: 10px; }
   .doc-row { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius-md); background: #fff; }
   .doc-ic { width: 42px; height: 42px; border-radius: 10px; background: var(--wash, #f4f3ef); color: var(--accent); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -4052,6 +4076,64 @@ function maybeAutoSync(){
     else if (state.section && SECTION_PAGE[state.section]) showSection(state.section);   // refresh nudges/leads with synced touches
   }).catch(()=>{});
 }
+
+/* ---------- First-run onboarding: get each rep fully set up ---------- */
+function currentRep(){ if (!AUTH || !AUTH.email) return null; const e = String(AUTH.email).toLowerCase(); return getTeam().find(p => String(p.email||'').toLowerCase() === e) || null; }
+function ensureRep(){ let r = currentRep(); if (r) return r; if (!AUTH || !AUTH.email) return null; r = { id: uid('sp_'), name: AUTH.name || AUTH.email, email: AUTH.email, phone:'', hubspot:'' }; upsertPerson(r); return r; }
+function onboardingState(){
+  const rep = currentRep();
+  return {
+    gmail: ((AUTH && AUTH.gmail === true) || !!GACTIVITY.syncedAt),
+    sched: !!(rep && rep.hubspot && String(rep.hubspot).trim()),
+    phone: !!(rep && rep.phone && String(rep.phone).trim())
+  };
+}
+function onboardingComplete(){ const s = onboardingState(); return s.gmail && s.sched && s.phone; }
+function onboardingRemaining(){ const s = onboardingState(); return (s.gmail?0:1) + (s.sched?0:1) + (s.phone?0:1); }
+let onboardingShownThisSession = false;
+function maybeShowOnboarding(){
+  if (!AUTH || !GOOGLE_CLIENT_ID) return;
+  if (onboardingShownThisSession || onboardingComplete()) return;
+  onboardingShownThisSession = true;
+  openOnboardingModal();
+}
+function onbRow(done, title, desc, action, below){
+  return el('div',{class:'onb-row' + (done?' done':'')},
+    el('div',{class:'onb-row-top'},
+      el('span',{class:'onb-check'+(done?' on':'')}, done ? '✓' : ''),
+      el('div',{class:'onb-rbody'}, el('div',{class:'onb-rtitle'}, title), el('div',{class:'onb-rdesc'}, desc)),
+      action ? el('div',{class:'onb-raction'}, action) : null),
+    below ? el('div',{class:'onb-below'}, below) : null);
+}
+function onbInputRow(done, title, desc, placeholder, value, onSave){
+  const inp = el('input',{type:'text', class:'onb-input', placeholder:placeholder, value:value||''});
+  const save = () => onSave(inp.value.trim());
+  inp.addEventListener('keydown', e => { if (e.key==='Enter') save(); });
+  return onbRow(done, title, desc, done ? el('span',{class:'onb-done-tag'},'Saved') : null,
+    el('div',{class:'onb-inputrow'}, inp, el('button',{class:'btn sm primary', type:'button', onClick:save}, done?'Update':'Save')));
+}
+function openOnboardingModal(){
+  ensureRep();
+  const render = () => {
+    const s = onboardingState();
+    const r = currentRep() || {};
+    const first = AUTH && AUTH.name ? String(AUTH.name).trim().split(/\s+/)[0] : '';
+    const node = el('div',{class:'onb'},
+      el('div',{class:'onb-head'},
+        el('h2',{class:'onb-title'}, first ? ('Welcome, ' + first) : 'Welcome to GearLocker'),
+        el('p',{class:'onb-sub'}, onboardingComplete() ? 'You’re all set — you can change these anytime in Settings.' : 'A few quick things so GearLocker works at full strength for you.')),
+      onbRow(s.gmail, 'Connect Gmail & Calendar', 'Auto-pulls your email and meetings onto every lead, and keeps nudges accurate.',
+        s.gmail ? el('span',{class:'onb-done-tag'},'Connected') : el('button',{class:'btn sm primary', type:'button', onClick: async (e)=>{ const b=e.currentTarget; b.disabled=true; b.textContent='Connecting…'; try { await connectGoogle(); } catch(err){} render(); }}, 'Connect')),
+      onbInputRow(s.sched, 'Your scheduling link', 'So prospects can book time with you — it’s added to your emails.', 'calendar.app.google/…  or  meetings.hubspot.com/you', r.hubspot||'', (v)=>{ const rr=currentRep()||ensureRep(); upsertPerson(Object.assign({}, rr, { hubspot:v })); render(); }),
+      onbInputRow(s.phone, 'Your phone number', 'Shows in your email signature.', '(555) 123-4567', r.phone||'', (v)=>{ const rr=currentRep()||ensureRep(); upsertPerson(Object.assign({}, rr, { phone:v })); render(); }),
+      el('div',{class:'onb-foot'},
+        el('span',{class:'onb-foot-note'}, onboardingComplete() ? '' : (onboardingRemaining() + ' left — you can finish later in Settings')),
+        el('button',{class:'btn ' + (onboardingComplete()?'primary':'ghost'), type:'button', onClick: ()=>{ closeModal(); if (state.section) showSection(state.section); }}, onboardingComplete() ? 'Done' : 'Do this later'))
+    );
+    openModal(node);
+  };
+  render();
+}
 function suggestForLead(deck, box, statusEl){
   if (!SUPABASE_URL){ statusEl.textContent = 'Cloud isn’t configured.'; return; }
   statusEl.textContent = 'Reading the deal and recommending the next step…';
@@ -4385,6 +4467,7 @@ function buildNav(active){
         t.label, (t.key==='tasks' && tasksCount) ? el('span',{class:'topnav-badge'}, String(tasksCount)) : null)))
     ),
     el('div',{class:'topnav-right'},
+      (AUTH && GOOGLE_CLIENT_ID && !onboardingComplete()) ? el('button',{class:'topnav-setup', type:'button', title:'Finish setting up your account', onClick:openOnboardingModal}, el('span',{class:'topnav-setup-dot'}), 'Finish setup · ' + onboardingRemaining()) : null,
       el('button',{class:'btn ghost sm', type:'button', title:'Check booked follow-ups on the rep’s calendar', onClick:(e)=>checkAllFollowups(e.currentTarget)}, el('span',{class:'fu-btn-label'},'Follow-ups')),
       chip,
       el('button',{class:'btn primary sm', type:'button', onClick:openCreateModal}, '+ New deck')
@@ -5527,6 +5610,7 @@ async function initDashboard(){
   runAutoTasks();   // auto-grade calls + auto-check follow-ups in the background (throttled, silent)
   loadGActivity();  // restore cached Google activity (instant timelines)
   maybeAutoSync();  // background refresh of Gmail + Calendar matches if connected & stale
+  maybeShowOnboarding();   // first-run setup checklist (Gmail, scheduling link, phone)
 }
 // (Manual "refresh" button + sync badge removed — decks save to the shared cloud on
 //  every change and auto-pull on load and whenever you return to the tab.)
