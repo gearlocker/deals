@@ -5835,7 +5835,7 @@ function renderToday(force){
     reOpps.slice(0,6).forEach(o => rw.appendChild(el('div',{class:'reeng-card'},
       el('div',{class:'reeng-card-l'},
         el('div',{class:'reeng-school'}, o.lead.school + (o.hint.state?(' · '+o.hint.state):'')),
-        el('div',{class:'reeng-sub'}, dormantStatus(o.lead) + ' — ' + o.hint.winner.school + ' came onboard ' + (o.hint.daysAgo===0?'today':(o.hint.daysAgo+'d ago')) + ', cite it as proof')),
+        el('div',{class:'reeng-sub'}, dormantStatus(o.lead) + ' — ' + o.hint.winner.school + ' (' + o.hint.state + (o.hint.sameState?'':', nearby') + ') came onboard ' + (o.hint.daysAgo===0?'today':(o.hint.daysAgo+'d ago')) + ', cite it as proof')),
       el('div',{class:'reeng-card-actions'},
         el('button',{class:'btn sm ghost', type:'button', onClick:()=>openLead(o.lead,'today')}, 'Open'),
         el('button',{class:'btn sm primary', type:'button', onClick:()=>openReEngageDraft(o.lead.id, o.hint.winner.id)}, 'Draft re-engagement')))));
@@ -6359,7 +6359,7 @@ function renderTasksSection(){
       el('div',{class:'nt-body'},
         el('div',{class:'nt-task'}, el('span',{class:'nt-acct', onClick:()=>openLead(deck,'tasks')}, deck.school)),
         el('div',{class:'nt-meta'}, daysQuiet(deck) + ' days quiet  ·  ' + repName(deck.salespersonId)),
-        hint ? el('div',{class:'nudge-reeng'}, '✨ ' + hint.winner.school + ' (' + hint.state + ') just came onboard — re-engage with the win') : null),
+        hint ? el('div',{class:'nudge-reeng'}, '✨ ' + hint.winner.school + ' (' + hint.state + (hint.sameState?'':' · nearby') + ') just came onboard — re-engage with the win') : null),
       el('div',{class:'nt-actions'},
         hint ? el('button',{class:'btn sm primary', onClick:()=>openReEngageDraft(deck.id, hint.winner.id)},'Draft re-engagement')
              : el('button',{class:'btn sm', onClick:()=>openEmailModal(deck, {autodraft:true})},'Draft email'),
@@ -6876,7 +6876,7 @@ function winLossSection(decks, inR, prevInR, repName){
 // Download the (rep-filtered) deal list as CSV for finance/ops.
 function exportMetricsCsv(decks){
   const team=getTeam();
-  const cols=[['School',d=>d.school],['Rep',d=>repNameOf(team,d)],['Stage',d=>stageMeta(dealStage(d)).label],['Source',d=>d.leadSource||''],['Sub-source',d=>d.leadSubSource||''],
+  const cols=[['School',d=>d.school],['Rep',d=>repNameOf(team,d)],['Stage',d=>stageMeta(dealStage(d)).label],['State',d=>deckState(d)],['Source',d=>d.leadSource||''],['Sub-source',d=>d.leadSubSource||''],
     ['Amount',d=>dealAmount(d)],['Created',d=>String(d.createdAt||'').slice(0,10)],['Demo',d=>String(demoDate(d)||'').slice(0,10)],['Commit',d=>String(committedDate(d)||'').slice(0,10)],
     ['Won',d=>String(closedWonDate(d)||'').slice(0,10)],['Lost',d=>String(lostDate(d)||'').slice(0,10)],['Loss reason',d=>d.lostReason||''],['Paid',d=>String(d.paidAt||'').slice(0,10)]];
   const esc=v=>{ const s=String(v==null?'':v); return /[",\n]/.test(s) ? ('"'+s.replace(/"/g,'""')+'"') : s; };
@@ -7201,15 +7201,35 @@ function promptLossReason(deckId){
 const US_STATES = [['AL','Alabama'],['AK','Alaska'],['AZ','Arizona'],['AR','Arkansas'],['CA','California'],['CO','Colorado'],['CT','Connecticut'],['DE','Delaware'],['FL','Florida'],['GA','Georgia'],['HI','Hawaii'],['ID','Idaho'],['IL','Illinois'],['IN','Indiana'],['IA','Iowa'],['KS','Kansas'],['KY','Kentucky'],['LA','Louisiana'],['ME','Maine'],['MD','Maryland'],['MA','Massachusetts'],['MI','Michigan'],['MN','Minnesota'],['MS','Mississippi'],['MO','Missouri'],['MT','Montana'],['NE','Nebraska'],['NV','Nevada'],['NH','New Hampshire'],['NJ','New Jersey'],['NM','New Mexico'],['NY','New York'],['NC','North Carolina'],['ND','North Dakota'],['OH','Ohio'],['OK','Oklahoma'],['OR','Oregon'],['PA','Pennsylvania'],['RI','Rhode Island'],['SC','South Carolina'],['SD','South Dakota'],['TN','Tennessee'],['TX','Texas'],['UT','Utah'],['VT','Vermont'],['VA','Virginia'],['WA','Washington'],['WV','West Virginia'],['WI','Wisconsin'],['WY','Wyoming'],['DC','Washington DC']];
 function stateName(code){ const m=US_STATES.find(s=>s[0]===code); return m?m[1]:(code||''); }
 function deckState(d){ return (d && d.state) ? String(d.state).toUpperCase() : ''; }
+// Contiguous-state adjacency — for a wider re-engage net (same state preferred, neighbors as fallback).
+const STATE_NEIGHBORS = { AL:['FL','GA','TN','MS'],AZ:['CA','NV','UT','NM'],AR:['MO','TN','MS','LA','TX','OK'],CA:['OR','NV','AZ'],CO:['WY','NE','KS','OK','NM','UT'],CT:['NY','MA','RI'],DE:['MD','PA','NJ'],FL:['GA','AL'],GA:['FL','AL','TN','NC','SC'],ID:['WA','OR','NV','UT','WY','MT'],IL:['WI','IA','MO','KY','IN'],IN:['IL','KY','OH','MI'],IA:['MN','WI','IL','MO','NE','SD'],KS:['NE','MO','OK','CO'],KY:['IL','IN','OH','WV','VA','TN','MO'],LA:['TX','AR','MS'],ME:['NH'],MD:['VA','WV','PA','DE','DC'],MA:['NY','VT','NH','RI','CT'],MI:['OH','IN','WI'],MN:['WI','IA','SD','ND'],MS:['LA','AR','TN','AL'],MO:['IA','IL','KY','TN','AR','OK','KS','NE'],MT:['ID','WY','SD','ND'],NE:['SD','IA','MO','KS','CO','WY'],NV:['CA','OR','ID','UT','AZ'],NH:['ME','MA','VT'],NJ:['NY','PA','DE'],NM:['AZ','CO','OK','TX','UT'],NY:['PA','NJ','CT','MA','VT'],NC:['VA','TN','GA','SC'],ND:['MT','SD','MN'],OH:['MI','IN','KY','WV','PA'],OK:['KS','MO','AR','TX','NM','CO'],OR:['WA','ID','CA','NV'],PA:['NY','NJ','DE','MD','WV','OH'],RI:['CT','MA'],SC:['NC','GA'],SD:['ND','MN','IA','NE','WY','MT'],TN:['KY','VA','NC','GA','AL','MS','AR','MO'],TX:['NM','OK','AR','LA'],UT:['ID','WY','CO','NM','AZ','NV'],VT:['NY','NH','MA'],VA:['MD','WV','KY','TN','NC','DC'],WA:['OR','ID'],WV:['OH','PA','MD','VA','KY'],WI:['MI','MN','IA','IL'],WY:['MT','SD','NE','CO','UT','ID'],DC:['MD','VA'],AK:[],HI:[] };
+function stateNet(code){ return code ? [code].concat(STATE_NEIGHBORS[code]||[]) : []; }
 const REENGAGE_WIN_DAYS = 60;   // a win is "fresh" social proof for this long
 // Only a CLOSED-WON deal is truthfully "came onboard" — never cite a verbal commit as a signed customer.
 function winDateFor(d){ return dealStage(d)==='closedwon' ? closedWonDate(d) : null; }
 function isFreshWin(d){ const dt=winDateFor(d); if(!dt) return false; const days=dayDiff(new Date().toISOString(), dt); return days!=null && days>=0 && days<=REENGAGE_WIN_DAYS; }
 function isDormantLead(d){ return dealStage(d)==='closedlost' || dealNeedsNudge(d); }   // lost OR gone-quiet open
 function dormantStatus(d){ return dealStage(d)==='closedlost' ? 'closed lost' : ('open · quiet ' + (daysQuiet(d)||'?') + 'd'); }
-function freshWinInState(stateCode, excludeId){ if(!stateCode) return null; const w=getDecks().filter(d=>d.id!==excludeId && deckState(d)===stateCode && isFreshWin(d)).sort((a,b)=>String(winDateFor(b)).localeCompare(String(winDateFor(a)))); return w[0]||null; }
-function reEngageHintForLead(d){ if(!isDormantLead(d)) return null; const st=deckState(d); if(!st) return null; const w=freshWinInState(st,d.id); if(!w) return null; return { winner:w, state:st, daysAgo: dayDiff(new Date().toISOString(), winDateFor(w)) }; }
-function reEngageTargetsForWin(winner){ const st=deckState(winner); if(!st) return []; return getDecks().filter(d=>d.id!==winner.id && deckState(d)===st && isDormantLead(d)).sort((a,b)=>(dealAmount(b)-dealAmount(a))||((daysQuiet(a)||999)-(daysQuiet(b)||999))); }
+// Best fresh win for a dormant lead: prefer a win in the lead's OWN state, else a neighboring state.
+function bestFreshWinForLead(d){
+  const st = deckState(d); if(!st) return null;
+  const net = stateNet(st);
+  const wins = getDecks().filter(w => w.id!==d.id && isFreshWin(w) && net.indexOf(deckState(w))>=0)
+    .sort((a,b)=> ((deckState(b)===st)-(deckState(a)===st)) || String(winDateFor(b)).localeCompare(String(winDateFor(a))));
+  return wins[0] || null;
+}
+function reEngageHintForLead(d){
+  if(!isDormantLead(d)) return null;
+  const w = bestFreshWinForLead(d); if(!w) return null;
+  return { winner:w, state:deckState(w), sameState: deckState(w)===deckState(d), daysAgo: dayDiff(new Date().toISOString(), winDateFor(w)) };
+}
+function reEngageTargetsForWin(winner){
+  const st = deckState(winner); if(!st) return [];
+  const net = stateNet(st);
+  const same = d => deckState(d)===st ? 1 : 0;
+  return getDecks().filter(d => d.id!==winner.id && isDormantLead(d) && net.indexOf(deckState(d))>=0)
+    .sort((a,b)=> (same(b)-same(a)) || (dealAmount(b)-dealAmount(a)) || ((daysQuiet(a)||999)-(daysQuiet(b)||999)));
+}
 // All current re-engage opportunities for a rep's queue (dormant leads with a fresh same-state win).
 function reEngageOppsFor(scopeFn){ return getDecks().filter(d => (scopeFn?scopeFn(d):true)).map(d=>({ lead:d, hint:reEngageHintForLead(d) })).filter(x=>x.hint).sort((a,b)=> a.hint.daysAgo - b.hint.daysAgo || (dealAmount(b.lead)-dealAmount(a.lead))); }
 
@@ -7247,6 +7267,7 @@ async function openReEngageDraft(leadId, winnerId){
     const r = await fetch(SUPABASE_URL+'/functions/v1/reengage-draft', { method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+SUPABASE_ANON_KEY, 'apikey':SUPABASE_ANON_KEY }, body: JSON.stringify({
       lead:{ school:lead.school, contactFirst:lead.contactFirst||'', state:deckState(lead), status:dormantStatus(lead), daysQuiet:daysQuiet(lead), lostReason:lead.lostReason||'' },
       winner:{ school:winner.school, state:deckState(winner), whenAgo: (dd===0?'today':(dd+' days ago')) },
+      sameState: !!deckState(lead) && deckState(lead)===deckState(winner),
       rep: sp?{name:sp.name}:null
     }) });
     const data = await r.json().catch(()=>({})); if (!r.ok) throw new Error(data.error||('Error '+r.status));
@@ -7262,11 +7283,13 @@ function maybePromptReEngage(deckId){
 function promptReEngage(winnerId, targets){
   const w = DB.decks.find(x=>x.id===winnerId); if(!w) return; const st=deckState(w);
   const list = el('div',{class:'reeng-list'}, ...targets.slice(0,6).map(t => el('div',{class:'reeng-row'},
-    el('div',{}, el('div',{class:'reeng-school'}, t.school), el('div',{class:'reeng-sub'}, dormantStatus(t) + (t.lostReason?(' · '+t.lostReason):''))),
+    el('div',{}, el('div',{class:'reeng-school'}, t.school + (deckState(t) && deckState(t)!==st ? (' · '+deckState(t)+' nearby') : '')), el('div',{class:'reeng-sub'}, dormantStatus(t) + (t.lostReason?(' · '+t.lostReason):''))),
     el('button',{class:'btn sm primary', type:'button', onClick:()=>openReEngageDraft(t.id, winnerId)}, 'Draft re-engagement'))));
+  const sameCount = targets.filter(t=>deckState(t)===st).length;
+  const scope = sameCount===targets.length ? (st?stateName(st):'nearby') : (st?(stateName(st)+' & nearby-state'):'nearby');
   const body = el('div',{},
     el('div',{class:'modal-h'}, '🎉 You closed ' + w.school + (st?(' ('+st+')'):'') + '!'),
-    el('div',{class:'modal-desc'}, targets.length + ' ' + (st?stateName(st):'nearby') + ' lead' + (targets.length>1?'s':'') + ' went cold — re-engage with the win as proof: “a school near you just came onboard.”'),
+    el('div',{class:'modal-desc'}, targets.length + ' ' + scope + ' lead' + (targets.length>1?'s':'') + ' went cold — re-engage with the win as proof: “a school near you just came onboard.”'),
     list,
     el('div',{class:'modal-foot'}, el('button',{class:'btn', onClick:closeModal}, 'Maybe later')));
   openModal(body);
@@ -7274,7 +7297,7 @@ function promptReEngage(winnerId, targets){
 function reEngageBanner(deck){
   const hint = reEngageHintForLead(deck); if(!hint) return null;
   return el('div',{class:'reeng-banner'},
-    el('div',{class:'reeng-banner-txt'}, el('span',{class:'reeng-spark'},'✨'), el('span',{}, el('b',{}, hint.winner.school), ' (' + hint.state + ') came onboard ' + (hint.daysAgo===0?'today':(hint.daysAgo+'d ago')) + ' — re-engage ' + deck.school + ' with the win.')),
+    el('div',{class:'reeng-banner-txt'}, el('span',{class:'reeng-spark'},'✨'), el('span',{}, el('b',{}, hint.winner.school), ' (' + hint.state + (hint.sameState?'':' · nearby') + ') came onboard ' + (hint.daysAgo===0?'today':(hint.daysAgo+'d ago')) + ' — re-engage ' + deck.school + ' with the win.')),
     el('button',{class:'btn sm primary', type:'button', onClick:()=>openReEngageDraft(deck.id, hint.winner.id)}, 'Draft re-engagement'));
 }
 
