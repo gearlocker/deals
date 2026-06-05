@@ -3471,9 +3471,9 @@ function saveRubric(arr){
 
 /* ---- Automation toggles (Settings → Automation) — control the on-load background tasks ---- */
 const AUTOMATION_KEY = 'gl_automation_v1';
-let AUTOMATION = { autoGrade: true, autoFollowup: true, nudgeDays: 10, stagePlaybooks: true };
-function automationConfig(){ return { type:'automation', autoGrade: !!AUTOMATION.autoGrade, autoFollowup: !!AUTOMATION.autoFollowup, nudgeDays: Number(AUTOMATION.nudgeDays) || 10, stagePlaybooks: !!AUTOMATION.stagePlaybooks }; }
-function applyAutomation(cfg){ if (cfg && typeof cfg === 'object'){ if (typeof cfg.autoGrade !== 'undefined') AUTOMATION.autoGrade = !!cfg.autoGrade; if (typeof cfg.autoFollowup !== 'undefined') AUTOMATION.autoFollowup = !!cfg.autoFollowup; if (cfg.nudgeDays != null && cfg.nudgeDays !== '') AUTOMATION.nudgeDays = Number(cfg.nudgeDays) || 10; if (typeof cfg.stagePlaybooks !== 'undefined') AUTOMATION.stagePlaybooks = !!cfg.stagePlaybooks; } }
+let AUTOMATION = { autoGrade: true, autoFollowup: true, nudgeDays: 10, stagePlaybooks: true, autoAi: true };
+function automationConfig(){ return { type:'automation', autoGrade: !!AUTOMATION.autoGrade, autoFollowup: !!AUTOMATION.autoFollowup, nudgeDays: Number(AUTOMATION.nudgeDays) || 10, stagePlaybooks: !!AUTOMATION.stagePlaybooks, autoAi: AUTOMATION.autoAi !== false }; }
+function applyAutomation(cfg){ if (cfg && typeof cfg === 'object'){ if (typeof cfg.autoGrade !== 'undefined') AUTOMATION.autoGrade = !!cfg.autoGrade; if (typeof cfg.autoFollowup !== 'undefined') AUTOMATION.autoFollowup = !!cfg.autoFollowup; if (cfg.nudgeDays != null && cfg.nudgeDays !== '') AUTOMATION.nudgeDays = Number(cfg.nudgeDays) || 10; if (typeof cfg.stagePlaybooks !== 'undefined') AUTOMATION.stagePlaybooks = !!cfg.stagePlaybooks; if (typeof cfg.autoAi !== 'undefined') AUTOMATION.autoAi = !!cfg.autoAi; } }
 function saveAutomation(cfg){
   applyAutomation(cfg);
   saveJSON(AUTOMATION_KEY, automationConfig());
@@ -4559,7 +4559,7 @@ function renderTeamSettings(){
   return wrap;
 }
 function renderAutomationSettings(){
-  const draft = { autoGrade: !!AUTOMATION.autoGrade, autoFollowup: !!AUTOMATION.autoFollowup, nudgeDays: Number(AUTOMATION.nudgeDays) || 10, stagePlaybooks: !!AUTOMATION.stagePlaybooks };
+  const draft = { autoGrade: !!AUTOMATION.autoGrade, autoFollowup: !!AUTOMATION.autoFollowup, nudgeDays: Number(AUTOMATION.nudgeDays) || 10, stagePlaybooks: !!AUTOMATION.stagePlaybooks, autoAi: AUTOMATION.autoAi !== false };
   const status = el('span',{class:'settings-saved'}, '');
   function toggleRow(key, title, desc){
     const input = el('input',{type:'checkbox'}); input.checked = draft[key];
@@ -4574,6 +4574,7 @@ function renderAutomationSettings(){
   const save = () => { saveAutomation(draft); status.textContent = 'Saved ✓'; setTimeout(()=>status.textContent='',2500); };
   return el('div',{},
     el('p',{class:'settings-subtitle'}, 'Control what runs automatically when the dashboard loads. Saved for the whole team.'),
+    toggleRow('autoAi', 'Auto-generate AI summaries', 'Automatically write the “story this week” narratives on the dashboard, win/loss tab, and weekly report — no button to push. Refreshes only when your data changes or once a day, and caches in between, so it stays cheap. Turn off to generate them manually. (Each uses one Claude call.)'),
     toggleRow('autoGrade', 'Auto-grade calls', 'When the dashboard loads, automatically pull each deck’s Fathom call and grade it against your rubric — once per deck. Turn off to grade only when you click the analyze icon. (Each grade uses Claude.)'),
     toggleRow('autoFollowup', 'Auto-check follow-ups', 'When the dashboard loads, quietly check reps’ calendars for booked follow-ups and update the chips. Turn off to check only via the Follow-ups button.'),
     toggleRow('stagePlaybooks', 'Stage playbooks', 'When a deal first moves into a stage, auto-create that stage’s task checklist (e.g. Closed Won → schedule kickoff, send welcome, provision, 30-day check-in). Fires once per deal per stage; you can delete any task you don’t need.'),
@@ -6586,37 +6587,63 @@ function renderDashSummary(container, data){
     container.appendChild(el('ul',{class:'dai-insights'}, ...data.insights.map(ins => el('li',{class:'dai-i dai-'+((ins&&ins.tone)||'neutral')}, (ins&&ins.text)||String(ins)))));
   if (data.focus) container.appendChild(el('div',{class:'dai-focus'}, el('b',{},'Focus: '), data.focus));
 }
-async function generateDashSummary(container, btn){
-  if (!SUPABASE_URL){ container.innerHTML=''; container.appendChild(el('div',{class:'dai-empty'},'Cloud isn’t configured, so the AI summary is unavailable.')); return; }
+// ----- Auto-AI summary cache: localStorage, keyed by view + data-fingerprint + day -----
+// A summary regenerates only when the underlying data changes or it's a new day — never on a plain re-render.
+function aiFp(decks){ let n=decks.length, amt=0, closed=0, maxU=0; decks.forEach(d=>{ amt+=dealAmount(d); const s=dealStage(d); if(s==='closedwon'||s==='closedlost') closed++; const u=Date.parse(d.updatedAt||d.createdAt||'')||0; if(u>maxU) maxU=u; }); return n+':'+amt+':'+closed+':'+maxU; }
+function aiToday(){ return new Date().toISOString().slice(0,10); }
+function aiSumLoad(type,key){ try { return JSON.parse(localStorage.getItem('gl_aisum_'+type+'_'+key)||'null'); } catch(e){ return null; } }
+function aiSumSave(type,key,data,fp){ try { localStorage.setItem('gl_aisum_'+type+'_'+key, JSON.stringify({data,fp,day:aiToday()})); } catch(e){} }
+function aiSumFresh(c,fp){ return !!(c && c.fp===fp && c.day===aiToday()); }
+const aiInFlight = {};
+// One fetch → render → cache. Keeps prior content visible during a background refresh.
+async function runAiSummary(container, btn, o){
+  if (!SUPABASE_URL) return;
+  const hadContent = !!container.querySelector('.dai-headline');
   if (btn){ btn.disabled=true; btn.textContent='Analyzing…'; }
-  container.innerHTML=''; container.appendChild(el('div',{class:'dai-loading'},'Reading your numbers and writing the story…'));
+  if (!hadContent){ container.innerHTML=''; container.appendChild(el('div',{class:'dai-loading'}, o.loading||'Reading your numbers and writing the story…')); }
   try {
-    const snap = dashSnapshot();
     const r = await fetch(SUPABASE_URL + '/functions/v1/dashboard-summary', {
       method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+SUPABASE_ANON_KEY, 'apikey':SUPABASE_ANON_KEY },
-      body: JSON.stringify({ window:snap.window, rep:snap.scope, metrics:snap })
-    });
+      body: JSON.stringify(o.payload) });
     const data = await r.json().catch(()=>({error:'Unexpected response.'}));
     if (!r.ok) throw new Error(data.error || ('Error '+r.status));
     renderDashSummary(container, data);
-    state.dashSummaryCache = { key: dashSummaryKey(), data };
+    aiSumSave(o.type, o.key, data, o.fp);
+    if (o.onDone) try { o.onDone(data); } catch(e){}
   } catch(e){
-    container.innerHTML=''; container.appendChild(el('div',{class:'dai-err'}, 'Couldn’t generate the summary: ' + (e&&e.message?e.message:e)));
+    if (!hadContent){ container.innerHTML=''; container.appendChild(el('div',{class:'dai-err'}, 'Couldn’t generate the summary: ' + (e&&e.message?e.message:e))); }
   } finally { if(btn){ btn.disabled=false; btn.textContent='↻ Refresh'; } }
 }
-function dashSummaryCard(){
-  const card=el('div',{class:'metric-card dai-card'});
-  const bodyEl=el('div',{class:'dai-body'});
-  const btn=el('button',{class:'btn ghost sm', type:'button'}, 'Generate');
-  btn.addEventListener('click', ()=>generateDashSummary(bodyEl, btn));
-  card.appendChild(el('div',{class:'metric-h'},
-    el('span',{}, '✨ The story this week'),
-    infoTip('AI reads the numbers in the current window and writes a short narrative — what’s working, what’s lagging vs goal, what’s at risk, and what to focus on. Click Generate (uses one AI call; cached per window).'),
-    el('div',{class:'metric-h-actions'}, btn)));
-  card.appendChild(bodyEl);
-  if (state.dashSummaryCache && state.dashSummaryCache.key===dashSummaryKey()){ renderDashSummary(bodyEl, state.dashSummaryCache.data); btn.textContent='↻ Refresh'; }
-  else bodyEl.appendChild(el('div',{class:'dai-empty'}, 'Click Generate for an AI read on these numbers — the highlights, the risks, and what to do next.'));
+// A summary card that auto-generates in the background (when Automation → Auto-AI is on) and caches.
+function aiAutoCard(o){
+  const card=el('div',{class:'metric-card dai-card'}), body=el('div',{class:'dai-body'}), tag=o.type+o.key;
+  const cached=aiSumLoad(o.type, o.key);
+  const btn=el('button',{class:'btn ghost sm', type:'button'}, (cached&&cached.data)?'↻ Refresh':'Generate');
+  const fire=()=>{ if (aiInFlight[tag]) return; aiInFlight[tag]=true; runAiSummary(body, btn, { type:o.type, key:o.key, fp:o.fp, payload:o.payloadFn(), loading:o.loading, onDone:o.onDone }).finally(()=>{ delete aiInFlight[tag]; }); };
+  btn.addEventListener('click', fire);
+  card.appendChild(el('div',{class:'metric-h'}, el('span',{}, o.title), o.tip?infoTip(o.tip):null, el('div',{class:'metric-h-actions'}, btn)));
+  card.appendChild(body);
+  const auto = AUTOMATION.autoAi !== false && !!SUPABASE_URL;
+  if (cached && cached.data){
+    renderDashSummary(body, cached.data);
+    if (auto && !aiSumFresh(cached, o.fp)) fire();                 // stale → refresh in background, keep showing old
+  } else if (auto){
+    body.appendChild(el('div',{class:'dai-loading'}, o.loading||'Reading your numbers and writing the story…'));
+    fire();                                                         // first run → generate automatically
+  } else {
+    body.appendChild(el('div',{class:'dai-empty'}, o.empty||'Click Generate for an AI read on these numbers — the highlights, the risks, and what to do next.'));
+  }
   return card;
+}
+function dashSummaryCard(){
+  const repId=(state.metricsRep && state.metricsRep!=='all')?state.metricsRep:null;
+  const decks=repId?getDecks().filter(d=>d.salespersonId===repId):getDecks();
+  return aiAutoCard({
+    type:'dash', key:dashSummaryKey(), fp:aiFp(decks),
+    title:'✨ The story this week',
+    tip:'AI reads the numbers in the current window and writes a short narrative — what’s working, what’s lagging vs goal, what’s at risk, and what to focus on. Generates automatically and refreshes when your data changes or once a day (turn off in Settings → Automation).',
+    payloadFn:()=>{ const s=dashSnapshot(); return { window:s.window, rep:s.scope, metrics:s }; }
+  });
 }
 function renderMetrics(){
   const body=document.getElementById('metrics-body'); body.innerHTML='';
@@ -6826,34 +6853,15 @@ function winLossSnapshot(decks, inR, repName){
     whereDealsDie: wl.whereDie.map(s=>({furthestStageReached:s.label, count:s.count, dollarsLost:s.amt}))
   };
 }
-async function generateWinLossSummary(container, btn, decks, inR, repName){
-  if (!SUPABASE_URL){ container.innerHTML=''; container.appendChild(el('div',{class:'dai-empty'},'Cloud isn’t configured, so the AI summary is unavailable.')); return; }
-  if (btn){ btn.disabled=true; btn.textContent='Analyzing…'; }
-  container.innerHTML=''; container.appendChild(el('div',{class:'dai-loading'},'Reading the win/loss patterns…'));
-  try {
-    const snap=winLossSnapshot(decks, inR, repName);
-    const r=await fetch(SUPABASE_URL + '/functions/v1/dashboard-summary', {
-      method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+SUPABASE_ANON_KEY, 'apikey':SUPABASE_ANON_KEY },
-      body: JSON.stringify({ window:'win/loss · '+snap.window, rep:'win/loss analysis for the team', metrics:snap })
-    });
-    const res=await r.json().catch(()=>({error:'Unexpected response.'}));
-    if (!r.ok) throw new Error(res.error || ('Error '+r.status));
-    renderDashSummary(container, res);
-    state.winLossAiCache={ key:dashSummaryKey(), data:res };
-  } catch(e){ container.innerHTML=''; container.appendChild(el('div',{class:'dai-err'}, 'Couldn’t generate: '+(e&&e.message?e.message:e))); }
-  finally { if(btn){ btn.disabled=false; btn.textContent='↻ Refresh'; } }
-}
 function winLossAiCard(decks, inR, repName){
-  const card=el('div',{class:'metric-card dai-card'}), bodyEl=el('div',{class:'dai-body'});
-  const btn=el('button',{class:'btn ghost sm', type:'button'}, 'Generate');
-  btn.addEventListener('click', ()=>generateWinLossSummary(bodyEl, btn, decks, inR, repName));
-  card.appendChild(el('div',{class:'metric-h'}, el('span',{}, '✨ What’s driving wins & losses'),
-    infoTip('AI reads the win/loss patterns in this window — which sources/reps/sizes convert, why we lose, where deals die — and writes the takeaways. One AI call, cached per window.'),
-    el('div',{class:'metric-h-actions'}, btn)));
-  card.appendChild(bodyEl);
-  if (state.winLossAiCache && state.winLossAiCache.key===dashSummaryKey()){ renderDashSummary(bodyEl, state.winLossAiCache.data); btn.textContent='↻ Refresh'; }
-  else bodyEl.appendChild(el('div',{class:'dai-empty'}, 'Click Generate for an AI read on what’s winning and losing — and why.'));
-  return card;
+  return aiAutoCard({
+    type:'wl', key:dashSummaryKey(), fp:aiFp(decks),
+    title:'✨ What’s driving wins & losses',
+    tip:'AI reads the win/loss patterns in this window — which sources/reps/sizes convert, why we lose, where deals die — and writes the takeaways. Generates automatically and refreshes when your data changes or once a day.',
+    loading:'Reading the win/loss patterns…',
+    empty:'Click Generate for an AI read on what’s winning and losing — and why.',
+    payloadFn:()=>{ const s=winLossSnapshot(decks, inR, repName); return { window:'win/loss · '+s.window, rep:'win/loss analysis for the team', metrics:s }; }
+  });
 }
 function winLossSection(decks, inR, prevInR, repName){
   const wl=computeWinLoss(decks, inR, repName), prev=computeWinLoss(decks, prevInR, repName);
@@ -8190,8 +8198,8 @@ function buildReportSlides(data){
   return slides;
 }
 
-/* weeklyReportData + any generated AI summary for the week, ready to build slides. */
-function reportData(offset){ const d = weeklyReportData(offset); d.aiSummary = (state.reportAiCache && state.reportAiCache[offset]) || null; return d; }
+/* weeklyReportData + any generated AI summary for the week (from cache), ready to build slides. */
+function reportData(offset){ const d = weeklyReportData(offset); const c = aiSumLoad('rep', String(offset)); d.aiSummary = (c && c.data) || null; return d; }
 /* Map the weekly report's data into the generic dashboard-summary snapshot shape. */
 function reportSnapshot(data){
   const g = data.goals;
@@ -8206,24 +8214,6 @@ function reportSnapshot(data){
     lossReasonsAllTime:(data.lossReasons||[]).slice(0,5).map(r=>({reason:r.reason, count:r.n})),
     repScoreboard:(data.reps||[]).filter(r=>!r.muted).map(r=>({rep:r.name, leadsThisWeek:r.leads, demosThisWeek:r.demos, wonThisWeek:r.wonCount, wonAmountThisWeek:r.wonAmt}))
   };
-}
-async function generateReportSummary(offset, container, btn){
-  if (!SUPABASE_URL){ container.innerHTML=''; container.appendChild(el('div',{class:'dai-empty'},'Cloud isn’t configured, so the AI summary is unavailable.')); return; }
-  if (btn){ btn.disabled=true; btn.textContent='Analyzing…'; }
-  container.innerHTML=''; container.appendChild(el('div',{class:'dai-loading'},'Reading the week and writing the story…'));
-  try {
-    const snap = reportSnapshot(weeklyReportData(offset));
-    const r = await fetch(SUPABASE_URL + '/functions/v1/dashboard-summary', {
-      method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+SUPABASE_ANON_KEY, 'apikey':SUPABASE_ANON_KEY },
-      body: JSON.stringify({ window:snap.window, rep:snap.scope, metrics:snap })
-    });
-    const res = await r.json().catch(()=>({error:'Unexpected response.'}));
-    if (!r.ok) throw new Error(res.error || ('Error '+r.status));
-    state.reportAiCache = state.reportAiCache || {}; state.reportAiCache[offset] = res;
-    renderReports();   // re-render: shows the narrative card + adds the AI slide (slide 2) to the thumbnails
-  } catch(e){
-    container.innerHTML=''; container.appendChild(el('div',{class:'dai-err'}, 'Couldn’t generate the summary: ' + (e&&e.message?e.message:e)));
-  } finally { if(btn){ btn.disabled=false; } }
 }
 function renderReports(){
   const body = document.getElementById('reports-body');
@@ -8240,17 +8230,18 @@ function renderReports(){
     el('div',{class:'rep-controls'}, el('span',{class:'rep-week-lbl'}, 'Week'), sel, printBtn, dlBtn, presentBtn)));
   if (!getDecks().length){ body.appendChild(el('p',{class:'muted', style:'padding:20px 4px'}, 'No deals in the system yet — add leads to generate a report.')); return; }
   const data = reportData(offset);
-  // AI "story this week" — generate once per week; it's also woven in as slide 2.
-  const aiBody = el('div',{class:'dai-body'});
-  const aiBtn = el('button',{class:'btn ghost sm', type:'button'}, data.aiSummary ? '↻ Refresh' : 'Generate');
-  aiBtn.addEventListener('click', ()=>generateReportSummary(offset, aiBody, aiBtn));
-  if (data.aiSummary) renderDashSummary(aiBody, data.aiSummary);
-  else aiBody.appendChild(el('div',{class:'dai-empty'}, 'Generate an AI read of this week — it’s shown here and added as slide 2 of the report.'));
-  body.appendChild(el('div',{class:'metric-card dai-card', style:'margin-bottom:20px'},
-    el('div',{class:'metric-h'}, el('span',{}, '✨ The story this week'),
-      infoTip('AI reads this week’s numbers and writes a short narrative. Generate once (one AI call, cached for the week); it also becomes slide 2 of the slideshow/PDF.'),
-      el('div',{class:'metric-h-actions'}, aiBtn)),
-    aiBody));
+  // AI "story this week" — auto-generates, cached per week; also woven in as slide 2.
+  const aiCard = aiAutoCard({
+    type:'rep', key:String(offset), fp:aiFp(getDecks()),
+    title:'✨ The story this week',
+    tip:'AI reads this week’s numbers and writes a short narrative. Generates automatically (refreshes when your data changes or once a day); it also becomes slide 2 of the slideshow/PDF.',
+    loading:'Reading the week and writing the story…',
+    empty:'An AI read of this week appears here automatically — it’s also added as slide 2 of the report.',
+    payloadFn:()=>{ const s=reportSnapshot(weeklyReportData(offset)); return { window:s.window, rep:s.scope, metrics:s }; },
+    onDone:()=>{ if (state.view==='reports' && (state.reportOffset||0)===offset) renderReports(); }
+  });
+  aiCard.style.marginBottom = '20px';
+  body.appendChild(aiCard);
   const grid = el('div',{class:'rep-thumbs'});
   buildReportSlides(data).forEach((sec, i) => {
     const inner = sec.querySelector('.slide-inner');
