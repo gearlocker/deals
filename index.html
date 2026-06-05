@@ -3568,6 +3568,8 @@ function getSequence(id){ return SEQUENCES.find(s => s.id === id) || null; }
 const SOURCES_KEY = 'gl_sources_v1';
 const DEFAULT_SOURCES = [
   { name:'Cold outreach', subs:[] },
+  { name:'EmailBison', subs:[] },
+  { name:'Proximity outreach', subs:[] },
   { name:'Inbound / website', subs:[] },
   { name:'Referral', subs:[] },
   { name:'Conference', subs:['Texas AD Conference'] },
@@ -3575,6 +3577,10 @@ const DEFAULT_SOURCES = [
   { name:'Partner', subs:[] },
   { name:'Other', subs:[] }
 ];
+// Sources the system writes automatically — make sure they always exist in the configured list
+// so the Dashboard's by-source breakdown groups them cleanly (for existing accounts too).
+const AUTO_SOURCES = ['EmailBison', 'Proximity outreach'];
+function ensureAutoSources(){ let changed=false; AUTO_SOURCES.forEach(n => { if (!SOURCES.some(s => s.name.toLowerCase()===n.toLowerCase())){ SOURCES.push({ name:n, subs:[] }); changed=true; } }); return changed; }
 let SOURCES = JSON.parse(JSON.stringify(DEFAULT_SOURCES));
 function sourcesConfig(){ return { type:'sources', list: SOURCES }; }
 function applySources(cfg){
@@ -3805,6 +3811,7 @@ applyAutomation(loadJSON(AUTOMATION_KEY, null));   // restore automation toggles
 applyPlaybooks(loadJSON(PLAYBOOKS_KEY, null));      // restore stage playbooks (cloud copy loads in refreshFromCloud)
 applySequences(loadJSON(SEQUENCES_KEY, null));      // restore email sequences (cloud copy loads in refreshFromCloud)
 applySources(loadJSON(SOURCES_KEY, null));          // restore lead sources (cloud copy loads in refreshFromCloud)
+if (ensureAutoSources()) saveJSON(SOURCES_KEY, sourcesConfig());   // guarantee EmailBison + Proximity outreach exist
 applyEb(loadJSON(EMAILBISON_KEY, null));             // restore EmailBison config (cloud copy loads in refreshFromCloud)
 applyProspects(loadJSON(PROSPECTS_KEY, null));       // restore prospect queue (cloud copy loads in refreshFromCloud)
 applyLossReasons(loadJSON(LOSS_REASONS_KEY, null)); // restore loss reasons
@@ -3922,6 +3929,7 @@ async function refreshFromCloud(){
   if (goals){ applyGoals(goals); saveJSON(GOALS_KEY, goalsConfig()); }
   const sources = (settings || []).find(s => s && s.type === 'sources');
   if (sources){ applySources(sources); saveJSON(SOURCES_KEY, sourcesConfig()); }
+  if (ensureAutoSources()){ saveJSON(SOURCES_KEY, sourcesConfig()); if (cloudOn()) sbUpsert('settings', 'sources', sourcesConfig()).catch(()=>{}); }   // backfill auto-sources for existing accounts
   const lossr = (settings || []).find(s => s && s.type === 'lossreasons');
   if (lossr){ applyLossReasons(lossr); saveJSON(LOSS_REASONS_KEY, lossReasonsConfig()); }
   const eb = (settings || []).find(s => s && s.type === 'emailbison');
