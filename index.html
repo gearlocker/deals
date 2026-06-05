@@ -1930,6 +1930,13 @@
   .obj-sugg-a { font-size:13px; color:var(--ink-2); line-height:1.5; margin-top:2px; }
   .obj-sugg-actions { display:flex; gap:8px; margin-top:11px; }
 
+  /* Customer segment chip */
+  .seg-chip { display:inline-flex; align-items:center; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; border-radius:6px; padding:2px 7px; vertical-align:middle; }
+  .seg-school { background:#eef2ff; color:#4338ca; }
+  .seg-youth { background:#fef3c7; color:#b45309; }
+  .seg-college { background:#dcfce7; color:#15803d; }
+  .lead-sub .seg-chip { margin-right:2px; }
+
   /* dashboard parity: KPI deltas, gran toggle, loss bars, forecast-vs-plan */
   .kpi-d { display:block; margin-top:6px; font-size:11px; font-weight:600; line-height:1.2; }
   .kpi-d.up { color:#16a34a; } .kpi-d.down { color:#dc2626; } .kpi-d.flat { color:var(--ink-4); }
@@ -4077,6 +4084,18 @@ const STAGES = [
   { key:'closedwon',     label:'Closed Won',         short:'Won' },
   { key:'closedlost',    label:'Closed Lost',        short:'Lost' }
 ];
+/* ---------- Customer segment (school / youth-club / college) ----------
+   One first-class dimension that adapts vocabulary, sizing, research, and AI
+   framing per customer type. deck.segment defaults to 'school'. */
+const SEGMENTS = [
+  { key:'school',  label:'School',       short:'School',  noun:'school',        leader:'Athletic Director',       sizeLabel:'Enrollment', sizeUnit:'students' },
+  { key:'youth',   label:'Youth / Club', short:'Youth',   noun:'organization',  leader:'Director / Commissioner', sizeLabel:'Players',    sizeUnit:'players' },
+  { key:'college', label:'College',      short:'College', noun:'school',         leader:'Equipment Director',      sizeLabel:'Athletes',   sizeUnit:'athletes' },
+];
+function segOf(deck){ const s = deck && deck.segment; return SEGMENTS.some(x=>x.key===s) ? s : 'school'; }
+function segMeta(key){ return SEGMENTS.find(s=>s.key===key) || SEGMENTS[0]; }
+function segOfMeta(deck){ return segMeta(segOf(deck)); }
+
 // Returns {tasks, autoFired, history, count} to merge into the deck, or null if nothing to do.
 // The editable checklists live in PLAYBOOKS (Settings → Playbooks; defaults in DEFAULT_PLAYBOOKS).
 function applyStageAutomation(deck, newStage){
@@ -4201,7 +4220,7 @@ function deckRow(deck, team){
   const contact = [deck.contactFirst, deck.contactLast].filter(Boolean).join(' ');
   return el('div',{class:'deck-cols deck-row'},
     el('div',{class:'deck-cell'},
-      el('div',{class:'deck-school'}, el('span',{class:'school-name lead-link', onClick:()=>openLead(deck, 'leads')}, deck.school))),
+      el('div',{class:'deck-school'}, el('span',{class:'school-name lead-link', onClick:()=>openLead(deck, 'leads')}, deck.school), segOf(deck)!=='school' ? el('span',{class:'seg-chip seg-'+segOf(deck), style:'margin-left:7px'}, segOfMeta(deck).short) : null)),
     el('div',{class:'deck-cell'},
       contact ? el('div',{class:'deck-contact-name'}, contact) : el('span',{class:'muted'},'—'),
       deck.contactEmail ? el('div',{class:'deck-contact-email'}, deck.contactEmail) : null),
@@ -4347,11 +4366,12 @@ function openCreateModal(){
   const firstInput  = el('input',{type:'text', placeholder:'First name'});
   const lastInput   = el('input',{type:'text', placeholder:'Last name'});
   const emailInput  = el('input',{type:'email', placeholder:'contact@school.org'});
+  const segSelect = el('select',{}, ...SEGMENTS.map(s=>el('option',{value:s.key}, s.label)));
   const repSelect = el('select',{}, ...team.map(p=>el('option',{value:p.id}, p.name)));
   const submit = () => {
     const school = schoolInput.value.trim();
     if (school.length < 2){ schoolInput.focus(); return; }
-    createDeck({ school: school, salespersonId: repSelect.value,
+    createDeck({ school: school, segment: segSelect.value, salespersonId: repSelect.value,
       contactFirst: firstInput.value.trim(), contactLast: lastInput.value.trim(), contactEmail: emailInput.value.trim() });
   };
   schoolInput.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
@@ -4360,6 +4380,7 @@ function openCreateModal(){
     el('div',{class:'modal-h'},'New presentation'),
     el('div',{class:'modal-desc'},'Add the school and who you’re presenting to. You’ll run discovery live during the call.'),
     el('div',{class:'field'}, el('label',{},'School / organization'), schoolInput),
+    el('div',{class:'field'}, el('label',{},'Type'), segSelect),
     el('div',{class:'field'}, el('label',{},'Contact name'), el('div',{class:'field-row'}, firstInput, lastInput)),
     el('div',{class:'field'}, el('label',{},'Contact email'), emailInput),
     el('div',{class:'field'}, el('label',{},'Salesperson'),
@@ -4377,7 +4398,7 @@ function openCreateModal(){
 
 function createDeck(o){
   const now = new Date().toISOString();
-  const deck = { id: uid('d_'), school: o.school, salespersonId: o.salespersonId,
+  const deck = { id: uid('d_'), school: o.school, segment: o.segment || 'school', salespersonId: o.salespersonId,
     contactFirst: o.contactFirst || '', contactLast: o.contactLast || '', contactEmail: o.contactEmail || '',
     stage: 'newlead', leadSource: (sourceNames()[0] || 'Cold outreach'), leadSubSource:'', createdAt: now, updatedAt: now, enrollment:'', sports:[], lossPct:10, checksTech:null, sis:'' };
   upsertDeck(deck);
@@ -5712,7 +5733,7 @@ function renderLead(deck){
   body.appendChild(el('div',{class:'lead-headrow'},
     el('div',{class:'lead-head-l'},
       el('div',{class:'lead-avatar'}, String(deck.school||'?').trim().slice(0,1).toUpperCase()),
-      el('div',{}, el('h1',{class:'lead-title'}, deck.school), el('div',{class:'lead-sub'}, contact || deck.contactEmail || ''))),
+      el('div',{}, el('h1',{class:'lead-title'}, deck.school), el('div',{class:'lead-sub'}, el('span',{class:'seg-chip seg-'+segOf(deck)}, segOfMeta(deck).label), (contact || deck.contactEmail) ? (' · ' + (contact || deck.contactEmail)) : ''))),
     el('div',{class:'lead-head-right'}, healthChip(deck), el('span',{class:'stage-chip stage-' + dealStage(deck)}, stageMeta(dealStage(deck)).short), stageSel)
   ));
   // quick actions (log to timeline)
@@ -5842,6 +5863,7 @@ function renderLeadOverview(deck, content, sp, contact){
     el('div',{class:'lead-card'},
       el('div',{class:'lead-card-h'},'Deal'),
       leadEditRow('Owner', leadOwnerSelect(deck)),
+      leadEditRow('Type', leadSegmentSelect(deck)),
       el('div',{class:'lead-info-row'}, el('span',{class:'lead-info-k'},'Forecast'), el('div',{class:'lead-amt-wrap'}, el('span',{class:'lead-amt-$'},'$'), amtInput, el('span',{class:'lead-amt-yr'},'/yr'))),
       leadEditRow('Stage', leadStageSelect(deck)),
       (dealStage(deck)==='closedlost' ? leadEditRow('Loss reason', lossReasonInline(deck)) : null),
@@ -6495,7 +6517,7 @@ function qtLine(label, value, cls){
 function renderLeadProposal(deck, content){
   const card = el('div',{class:'lead-card'}, el('div',{class:'lead-card-h'},'Proposal pricing'));
   if (!(deck.enrollment && Number(deck.enrollment) > 0)){
-    card.appendChild(el('div',{class:'lead-empty', style:'padding:8px 0 4px'}, 'Add the school’s enrollment in the deck to calculate pricing.'));
+    card.appendChild(el('div',{class:'lead-empty', style:'padding:8px 0 4px'}, 'Add the ' + segOfMeta(deck).noun + '’s ' + segOfMeta(deck).sizeLabel.toLowerCase() + ' (' + segOfMeta(deck).sizeUnit + ') in the deck to calculate pricing.'));
     card.appendChild(el('button',{class:'btn sm primary', style:'margin-top:12px', type:'button', onClick:()=>openDeckTab(deck.id)}, 'Open the deck →'));
     content.appendChild(card);
     return;
@@ -7249,7 +7271,7 @@ function winLossSection(decks, inR, prevInR, repName){
 // Download the (rep-filtered) deal list as CSV for finance/ops.
 function exportMetricsCsv(decks){
   const team=getTeam();
-  const cols=[['School',d=>d.school],['Rep',d=>repNameOf(team,d)],['Stage',d=>stageMeta(dealStage(d)).label],['State',d=>deckState(d)],['Source',d=>d.leadSource||''],['Sub-source',d=>d.leadSubSource||''],
+  const cols=[['School',d=>d.school],['Type',d=>segOfMeta(d).label],['Rep',d=>repNameOf(team,d)],['Stage',d=>stageMeta(dealStage(d)).label],['State',d=>deckState(d)],['Source',d=>d.leadSource||''],['Sub-source',d=>d.leadSubSource||''],
     ['Amount',d=>dealAmount(d)],['Created',d=>String(d.createdAt||'').slice(0,10)],['Demo',d=>String(demoDate(d)||'').slice(0,10)],['Commit',d=>String(committedDate(d)||'').slice(0,10)],
     ['Won',d=>String(closedWonDate(d)||'').slice(0,10)],['Lost',d=>String(lostDate(d)||'').slice(0,10)],['Loss reason',d=>d.lostReason||''],['Paid',d=>String(d.paidAt||'').slice(0,10)]];
   const esc=v=>{ const s=String(v==null?'':v); return /[",\n]/.test(s) ? ('"'+s.replace(/"/g,'""')+'"') : s; };
@@ -7621,6 +7643,12 @@ function autoInferStates(){
       else saveDeckPatch(cur,{ stateMiss:new Date().toISOString() });
     }).catch(()=>{}).finally(()=>setTimeout(next,300)); })();
 }
+function leadSegmentSelect(deck){
+  const sel = el('select',{class:'lead-edit-input'}, ...SEGMENTS.map(s=>el('option',{value:s.key}, s.label)));
+  sel.value = segOf(deck);
+  sel.addEventListener('change', ()=>{ const cur=DB.decks.find(x=>x.id===deck.id)||deck; saveDeckPatch(cur,{ segment:sel.value }); if(state.view==='lead'&&state.leadId===deck.id) renderLead(DB.decks.find(x=>x.id===deck.id)); });
+  return sel;
+}
 function leadStateSelect(deck){
   const sel = el('select',{class:'lead-edit-input'}, el('option',{value:''},'— state —'), ...US_STATES.map(s=>el('option',{value:s[0]}, s[0]+' · '+s[1])));
   sel.value = deckState(deck);
@@ -7799,8 +7827,10 @@ function precallLoad(deck){ try { const r = JSON.parse(localStorage.getItem('gl_
 function precallSave(deck, brief){ try { localStorage.setItem('gl_precall_'+deck.id, JSON.stringify({ fp:precallFp(deck), brief, at:new Date().toISOString() })); } catch(e){} }
 function buildPrecallLead(deck){
   const r = deck.research || {};
+  const sm = segOfMeta(deck);
   return {
     school: deck.school,
+    segment: sm.label, leaderTitle: sm.leader, sizeLabel: sm.sizeLabel,
     contactName: [deck.contactFirst, deck.contactLast].filter(Boolean).join(' '),
     state: deckState(deck), city: r.city||'', district: r.district||'',
     enrollment: deck.enrollment || (r.enrollment||''),
