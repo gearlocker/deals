@@ -1882,6 +1882,32 @@
   .cp-obj-a { font-size:12.5px; color:var(--ink-3); line-height:1.5; margin-top:2px; }
   .cp-opener { font-size:13px; color:var(--ink); line-height:1.55; background:var(--accent-soft); border-radius:8px; padding:9px 11px; }
 
+  /* Call coach */
+  .coach-paste { width:100%; box-sizing:border-box; border:1px solid var(--border); border-radius:10px; padding:11px; font:inherit; font-size:13px; line-height:1.5; resize:vertical; margin-top:8px; }
+  .coach-title { width:100%; box-sizing:border-box; border:1px solid var(--border); border-radius:9px; padding:9px 11px; font:inherit; margin-top:6px; }
+  .coach-call { border:1px solid var(--border); border-radius:10px; margin-top:9px; overflow:hidden; }
+  .coach-call-head { display:flex; align-items:center; gap:11px; padding:10px 12px; cursor:pointer; }
+  .coach-call-head:hover { background:var(--surface); }
+  .coach-grade { flex-shrink:0; width:38px; height:38px; border-radius:9px; font-size:15px; font-weight:800; display:flex; align-items:center; justify-content:center; }
+  .coach-grade.tone-good { background:#dcfce7; color:#15803d; } .coach-grade.tone-mid { background:#fef3c7; color:#b45309; } .coach-grade.tone-bad { background:#fee2e2; color:#b91c1c; }
+  .coach-call-meta { flex:1; min-width:0; }
+  .coach-call-t { font-size:13.5px; font-weight:600; color:var(--ink); }
+  .coach-call-s { font-size:11.5px; color:var(--ink-4); margin-top:2px; }
+  .coach-toggle { color:var(--ink-4); font-size:12px; flex-shrink:0; }
+  .coach-detail { padding:4px 13px 14px; border-top:1px solid var(--border); }
+  .coach-summary { font-size:13px; color:var(--ink-2); line-height:1.55; margin:10px 0; }
+  .coach-sec { margin-top:11px; }
+  .coach-k { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-4); margin-bottom:5px; }
+  .coach-li { font-size:12.5px; color:var(--ink-2); line-height:1.5; padding-left:15px; position:relative; margin-top:4px; }
+  .coach-li:before { position:absolute; left:0; top:0; }
+  .coach-li.good:before { content:'✓'; color:#16a34a; } .coach-li.bad:before { content:'→'; color:#dc2626; } .coach-li.mid:before { content:'?'; color:#b45309; }
+  .coach-obj { border-left:2px solid var(--border); padding:2px 0 2px 11px; margin-top:7px; }
+  .coach-obj-q { font-size:12.5px; font-weight:600; font-style:italic; color:var(--ink-2); }
+  .coach-obj-h { font-size:12px; color:var(--ink-4); margin-top:2px; } .coach-obj-b { font-size:12.5px; color:var(--ink-2); margin-top:2px; }
+  .coach-rub { display:flex; align-items:baseline; gap:8px; font-size:12.5px; margin-top:4px; }
+  .coach-rub-c { font-weight:600; color:var(--ink-2); min-width:120px; } .coach-rub-s { font-weight:700; color:var(--accent); } .coach-rub-n { color:var(--ink-4); }
+  .coach-next { font-size:13px; color:var(--ink); margin-top:12px; line-height:1.5; }
+
   /* dashboard parity: KPI deltas, gran toggle, loss bars, forecast-vs-plan */
   .kpi-d { display:block; margin-top:6px; font-size:11px; font-weight:600; line-height:1.2; }
   .kpi-d.up { color:#16a34a; } .kpi-d.down { color:#dc2626; } .kpi-d.flat { color:var(--ink-4); }
@@ -4510,7 +4536,7 @@ function renderSettingsTabs(){
   const tabs = document.getElementById('settings-tabs');
   if (!tabs) return;
   tabs.innerHTML = '';
-  [['pricing','Pricing'],['goals','Goals'],['sources','Lead sources'],['lossreasons','Loss reasons'],['team','Team'],['rubric','Call rubric'],['automation','Automation'],['playbooks','Playbooks'],['sequences','Sequences'],['emailbison','EmailBison'],['google','Google sync']].forEach(([key,label]) => {
+  [['pricing','Pricing'],['goals','Goals'],['sources','Lead sources'],['lossreasons','Loss reasons'],['team','Team'],['rubric','Call rubric'],['automation','Automation'],['playbooks','Playbooks'],['sequences','Sequences'],['emailbison','EmailBison'],['fathom','Fathom'],['google','Google sync']].forEach(([key,label]) => {
     tabs.appendChild(el('button',{ class:'settings-tab' + (settingsTab===key?' active':''), type:'button', onClick:()=>{ settingsTab = key; renderSettingsPage(); window.scrollTo(0,0); } }, label));
   });
 }
@@ -4527,6 +4553,7 @@ function renderSettingsPage(){
   else if (settingsTab === 'lossreasons') body.appendChild(renderLossReasonSettings());
   else if (settingsTab === 'goals') body.appendChild(renderGoalsSettings());
   else if (settingsTab === 'emailbison') body.appendChild(renderEmailBisonSettings());
+  else if (settingsTab === 'fathom') body.appendChild(renderFathomSettings());
   else if (settingsTab === 'google') body.appendChild(renderGoogleSettings());
   else {
     body.appendChild(el('p',{class:'settings-subtitle'}, 'Update pricing here and it flows into every deck’s pricing slide and proposal. Saved for the whole team.'));
@@ -4595,6 +4622,20 @@ function renderEmailBisonSettings(){
   });
   card.appendChild(el('div',{class:'eb-row'}, saveBtn, saveNote));
   wrap.appendChild(card);
+  return wrap;
+}
+function renderFathomSettings(){
+  const wrap = el('div',{});
+  wrap.appendChild(el('p',{class:'settings-subtitle'}, 'Auto-coach every recorded call. When a Fathom call finishes, it’s matched to the lead by the attendee’s email, graded against your call rubric, and the coaching lands on the lead — no rep effort. Reps can also paste a transcript on any lead with “Coach a call”.'));
+  const webhookUrl = SUPABASE_URL ? (SUPABASE_URL.replace(/\/$/,'') + '/functions/v1/fathom-webhook') : '(connect the cloud first)';
+  const setup = el('div',{class:'eb-setup'});
+  setup.appendChild(el('div',{class:'eb-setup-h'}, 'One-time setup'));
+  setup.appendChild(el('ol',{class:'eb-setup-list'},
+    el('li',{}, 'In Fathom → Settings → Webhooks, add a webhook for the “new meeting content ready” event pointing at:'),
+    el('li',{}, el('div',{class:'eb-url'}, el('code',{}, webhookUrl), el('button',{class:'btn ghost sm', type:'button', onClick:()=>{ try{ navigator.clipboard.writeText(webhookUrl); showToast('Webhook URL copied.'); }catch(e){} }}, 'Copy'))),
+    el('li',{html:'(Optional, recommended) add <code>?token=YOUR_SECRET</code> to the URL and set a Supabase function secret <code>FATHOM_WEBHOOK_SECRET</code> to the same value so only Fathom can post.'}),
+    el('li',{html:'That’s it — the transcript comes inside the webhook, so no API key is needed. Make sure the lead’s <b>contact email</b> matches the call attendee so it links up.'})));
+  wrap.appendChild(setup);
   return wrap;
 }
 function renderGoogleSettings(){
@@ -5672,7 +5713,8 @@ function renderLeadOverview(deck, content, sp, contact){
   const mini = el('div',{class:'lead-timeline mini'}); actCard.appendChild(mini);
   fillTimeline(mini, deck, { limit:5, expandable:false });
   const banner = reEngageBanner(deck); if (banner) content.appendChild(banner);   // social-proof re-engage prompt
-  content.appendChild(el('div',{class:'lead-grid'}, left, el('div',{class:'lead-right'}, leadHealthCard(deck), leadCallPrepCard(deck), leadResearchCard(deck), leadEmailBisonCard(deck), ovCard, nxCard, actCard)));
+  content.appendChild(el('div',{class:'lead-grid'}, left, el('div',{class:'lead-right'}, leadHealthCard(deck), leadCallPrepCard(deck), leadCallsCard(deck), leadResearchCard(deck), leadEmailBisonCard(deck), ovCard, nxCard, actCard)));
+  if (deck.callCoachNew){ const cur = DB.decks.find(x=>x.id===deck.id); if (cur){ cur.callCoachNew = false; persistDecks(); if (cloudOn()) sbUpsert('decks', cur.id, cur).catch(()=>{}); } }   // mark coaching seen
 }
 function leadHealthCard(deck){
   const h = dealHealth(deck);
@@ -7648,6 +7690,70 @@ function leadCallPrepCard(deck){
     card.appendChild(ob);
   }
   if (b.opener) card.appendChild(el('div',{class:'cp-block'}, el('div',{class:'cp-k'},'Opener'), el('div',{class:'cp-opener'}, b.opener)));
+  return card;
+}
+
+/* ---------- AI Call Coach — grade calls + coach the rep (Fathom auto or paste) ---------- */
+const _coachExpanded = new Set();
+function coachRepNameOf(deck){ return (getTeam().find(p=>p.id===deck.salespersonId)||{}).name || ''; }
+function gradeTone(g){ g = Number(g)||0; return g>=80?'good':g>=60?'mid':'bad'; }
+async function coachTranscript(deck, transcript, source, title){
+  if (!SUPABASE_URL){ showToast('Connect the cloud to coach calls.'); return; }
+  const cur = DB.decks.find(x=>x.id===deck.id) || deck;
+  showToast('Coaching the call…');
+  try {
+    const rubric = (typeof RUBRIC!=='undefined' && Array.isArray(RUBRIC)) ? RUBRIC.map(r=>r.name).filter(Boolean).slice(0,8) : [];
+    const res = await fetch(SUPABASE_URL+'/functions/v1/coach-call', { method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+SUPABASE_ANON_KEY, 'apikey':SUPABASE_ANON_KEY }, body: JSON.stringify({ transcript, rubric, context:{ school:cur.school, rep:coachRepNameOf(cur), stage:stageMeta(dealStage(cur)).label } }) });
+    const data = await res.json().catch(()=>({})); if (!res.ok) throw new Error(data.error||('Error '+res.status));
+    const rec = { id:'call_'+uid(''), at:new Date().toISOString(), source:source||'manual', title:title||'', rep:coachRepNameOf(cur), coaching:data };
+    const calls = (Array.isArray(cur.calls)?cur.calls.slice():[]); calls.unshift(rec);
+    saveDeckPatch(cur, { calls:calls.slice(0,50), callCoachNew:false, lastCallAt:rec.at, history:pushHist(cur.history, 'call', 'AI coached a call · ' + (data.grade||0) + '/100') });
+    _coachExpanded.add(rec.id);
+    showToast('Call coached — ' + (data.grade||0) + '/100.');
+    if (state.view==='lead' && state.leadId===cur.id) renderLead(DB.decks.find(x=>x.id===cur.id));
+  } catch(e){ showToast('Coaching failed: ' + e.message); }
+}
+function openCoachPaste(deck){
+  const titleI = el('input',{type:'text', placeholder:'Call title (optional)', class:'coach-title'});
+  const ta = el('textarea',{class:'coach-paste', rows:'12', placeholder:'Paste the call transcript here (from Fathom, Otter, Zoom, etc.)…'});
+  const go = el('button',{class:'btn primary', type:'button'}, 'Analyze call');
+  go.addEventListener('click', ()=>{ const t=ta.value.trim(); if(t.length<40){ ta.focus(); showToast('Paste a longer transcript.'); return; } closeModal(); coachTranscript(deck, t, 'manual', titleI.value.trim()); });
+  openModal(el('div',{},
+    el('div',{class:'modal-h'}, 'Coach a call — ' + deck.school),
+    el('div',{class:'modal-desc'}, 'Paste a transcript and AI grades it against your call rubric and coaches the rep — what worked, what to improve, missed questions, objection handling, and the next step.'),
+    titleI, ta,
+    el('div',{class:'modal-foot'}, el('button',{class:'btn', type:'button', onClick:closeModal}, 'Cancel'), go)));
+}
+function coachingBlock(c){
+  const g = c.coaching; if (!g || g.error) return el('div',{class:'muted', style:'font-size:12.5px'}, 'Coaching unavailable for this call.');
+  const wrap = el('div',{class:'coach-detail'});
+  if (g.summary) wrap.appendChild(el('div',{class:'coach-summary'}, g.summary));
+  const sec = (label, items, cls) => { if (!Array.isArray(items) || !items.length) return; const s = el('div',{class:'coach-sec'}, el('div',{class:'coach-k'}, label)); items.forEach(it => s.appendChild(el('div',{class:'coach-li '+(cls||'')}, String(it)))); wrap.appendChild(s); };
+  sec('What worked', g.strengths, 'good');
+  sec('Improve', g.improvements, 'bad');
+  sec('Ask next time', g.missedQuestions, 'mid');
+  if (Array.isArray(g.objections) && g.objections.length){ const s = el('div',{class:'coach-sec'}, el('div',{class:'coach-k'},'Objections')); g.objections.forEach(o => s.appendChild(el('div',{class:'coach-obj'}, el('div',{class:'coach-obj-q'}, '“'+(o.objection||'')+'”'), o.howHandled?el('div',{class:'coach-obj-h'}, 'Handled: '+o.howHandled):null, o.betterRebuttal?el('div',{class:'coach-obj-b'}, 'Better: '+o.betterRebuttal):null))); wrap.appendChild(s); }
+  if (Array.isArray(g.rubricScores) && g.rubricScores.length){ const s = el('div',{class:'coach-sec'}, el('div',{class:'coach-k'},'Rubric')); g.rubricScores.forEach(r => s.appendChild(el('div',{class:'coach-rub'}, el('span',{class:'coach-rub-c'}, r.criterion||''), el('span',{class:'coach-rub-s'}, (r.score!=null?r.score:'–')+'/5'), r.note?el('span',{class:'coach-rub-n'}, r.note):null))); wrap.appendChild(s); }
+  if (g.nextStep) wrap.appendChild(el('div',{class:'coach-next'}, el('span',{class:'coach-k'},'Next step:'), ' ' + g.nextStep));
+  return wrap;
+}
+function leadCallsCard(deck){
+  const card = el('div',{class:'lead-card calls-card'});
+  card.appendChild(el('div',{class:'lead-card-h lead-card-h-row'}, el('span',{}, '📞 Calls & coaching' + (deck.callCoachNew ? ' · new' : '')), el('button',{class:'lead-viewall', type:'button', onClick:()=>openCoachPaste(deck)}, 'Coach a call')));
+  const calls = Array.isArray(deck.calls) ? deck.calls : [];
+  if (!calls.length){ card.appendChild(el('div',{class:'lead-empty', style:'padding:6px 0'}, 'Recorded calls auto-coach here once Fathom is connected — or paste a transcript with “Coach a call”.')); return card; }
+  calls.slice(0,8).forEach(c => {
+    const g = c.coaching || {}; const tone = gradeTone(g.grade); const open = _coachExpanded.has(c.id);
+    const row = el('div',{class:'coach-call'});
+    row.appendChild(el('div',{class:'coach-call-head', onClick:()=>{ if(open) _coachExpanded.delete(c.id); else _coachExpanded.add(c.id); if(state.view==='lead'&&state.leadId===deck.id) renderLead(DB.decks.find(x=>x.id===deck.id)); }},
+      el('span',{class:'coach-grade tone-'+tone}, String(g.grade!=null?g.grade:'–')),
+      el('div',{class:'coach-call-meta'},
+        el('div',{class:'coach-call-t'}, (c.title||'Call') + (c.source==='fathom'?' · Fathom':'')),
+        el('div',{class:'coach-call-s'}, [c.at?fmtDay(c.at):'', c.rep||'', (g.talkRatioRep!=null?('rep talked '+g.talkRatioRep+'%'):'')].filter(Boolean).join(' · '))),
+      el('span',{class:'coach-toggle'}, open?'▾':'▸')));
+    if (open) row.appendChild(coachingBlock(c));
+    card.appendChild(row);
+  });
   return card;
 }
 
