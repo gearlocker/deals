@@ -1831,6 +1831,30 @@
   .research-when { font-size:11.5px; color:var(--ink-4); margin-left:auto; }
   .research-filled { font-size:11.5px; color:#15803d; background:#f0fdf4; border-radius:7px; padding:6px 10px; margin-top:10px; }
 
+  /* EmailBison */
+  .eb-card .eb-status { font-size:13px; font-weight:600; color:#15803d; }
+  .eb-card .eb-meta { font-size:12px; color:var(--ink-4); margin-top:4px; }
+  .eb-dnc { font-size:12.5px; color:#b91c1c; background:#fef2f2; border-radius:8px; padding:9px 11px; line-height:1.45; }
+  .eb-warn { font-size:12.5px; color:#b45309; background:#fffbeb; border-radius:8px; padding:9px 11px; margin-bottom:10px; }
+  .eb-hot { background:#fff7ed; border:1px solid #fed7aa; border-radius:10px; padding:11px 13px; }
+  .eb-hot-h { font-size:13.5px; font-weight:700; color:#c2410c; }
+  .eb-reply { font-size:12.5px; color:var(--ink-2); font-style:italic; line-height:1.5; margin:7px 0 10px; }
+  .eb-hot-actions { display:flex; gap:8px; }
+  .eb-hot-card { background:#fff7ed; }
+  .today-ebhot { margin-bottom:18px; }
+  .eb-setup { background:var(--card-2,#f8fafc); border:1px solid var(--border); border-radius:12px; padding:14px 16px; margin-bottom:16px; }
+  .eb-setup-h { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-3); margin-bottom:8px; }
+  .eb-setup-list { margin:0; padding-left:20px; font-size:13px; color:var(--ink-2); line-height:1.7; }
+  .eb-setup-list code { background:var(--accent-soft); padding:1px 6px; border-radius:5px; font-size:12px; }
+  .eb-url { display:flex; align-items:center; gap:10px; margin-top:4px; }
+  .eb-url code { background:#0f172a; color:#e2e8f0; padding:6px 9px; border-radius:6px; font-size:11.5px; word-break:break-all; }
+  .eb-settings-card { border:1px solid var(--border); border-radius:12px; padding:16px; }
+  .eb-row { display:flex; align-items:center; gap:10px; margin-top:10px; flex-wrap:wrap; }
+  .eb-campaign-sel { flex:1; min-width:220px; padding:8px 10px; border:1px solid var(--border); border-radius:9px; font:inherit; }
+  .eb-cap { width:90px; padding:8px 10px; border:1px solid var(--border); border-radius:9px; font:inherit; }
+  .eb-cap-row label { font-size:13px; color:var(--ink-2); }
+  .eb-load-note { font-size:12px; color:var(--ink-4); }
+
   /* dashboard parity: KPI deltas, gran toggle, loss bars, forecast-vs-plan */
   .kpi-d { display:block; margin-top:6px; font-size:11px; font-weight:600; line-height:1.2; }
   .kpi-d.up { color:#16a34a; } .kpi-d.down { color:#dc2626; } .kpi-d.flat { color:var(--ink-4); }
@@ -3550,6 +3574,12 @@ let LOSS_REASONS = DEFAULT_LOSS_REASONS.slice();
 function lossReasonsConfig(){ return { type:'lossreasons', list: LOSS_REASONS }; }
 function applyLossReasons(cfg){ if (cfg && Array.isArray(cfg.list)){ const l = cfg.list.map(x => String(x||'').trim()).filter(Boolean); if (l.length) LOSS_REASONS = l; } }
 function saveLossReasons(list){ applyLossReasons({ list }); saveJSON(LOSS_REASONS_KEY, lossReasonsConfig()); if (cloudOn()) sbUpsert('settings', 'lossreasons', lossReasonsConfig()).catch(e => console.warn('loss reasons sync failed', e)); }
+
+const EMAILBISON_KEY = 'gl_emailbison_v1';
+let EB_CONFIG = { enabled:false, campaignId:'', campaignName:'', dailyCap:50 };
+function ebConfig(){ return { type:'emailbison', enabled:!!EB_CONFIG.enabled, campaignId:String(EB_CONFIG.campaignId||''), campaignName:EB_CONFIG.campaignName||'', dailyCap:Number(EB_CONFIG.dailyCap)||50 }; }
+function applyEb(cfg){ if (cfg && typeof cfg === 'object'){ if (typeof cfg.enabled!=='undefined') EB_CONFIG.enabled=!!cfg.enabled; if (typeof cfg.campaignId!=='undefined') EB_CONFIG.campaignId=String(cfg.campaignId||''); if (typeof cfg.campaignName!=='undefined') EB_CONFIG.campaignName=cfg.campaignName||''; if (cfg.dailyCap!=null && cfg.dailyCap!=='') EB_CONFIG.dailyCap=Number(cfg.dailyCap)||50; } }
+function saveEb(){ saveJSON(EMAILBISON_KEY, ebConfig()); if (cloudOn()) sbUpsert('settings', 'emailbison', ebConfig()).catch(e => console.warn('emailbison sync failed', e)); }
 function subsFor(name){ const s = SOURCES.find(x => x.name === name); return s ? s.subs : []; }
 /* ---- Monthly goals (dashboard pacing) ---- */
 const GOALS_KEY = 'gl_goals_v1';
@@ -3747,6 +3777,7 @@ applyAutomation(loadJSON(AUTOMATION_KEY, null));   // restore automation toggles
 applyPlaybooks(loadJSON(PLAYBOOKS_KEY, null));      // restore stage playbooks (cloud copy loads in refreshFromCloud)
 applySequences(loadJSON(SEQUENCES_KEY, null));      // restore email sequences (cloud copy loads in refreshFromCloud)
 applySources(loadJSON(SOURCES_KEY, null));          // restore lead sources (cloud copy loads in refreshFromCloud)
+applyEb(loadJSON(EMAILBISON_KEY, null));             // restore EmailBison config (cloud copy loads in refreshFromCloud)
 applyLossReasons(loadJSON(LOSS_REASONS_KEY, null)); // restore loss reasons
 applyGoals(loadJSON(GOALS_KEY, null));               // restore monthly goals
 function getDecks(){ return DB.decks; }
@@ -3864,6 +3895,8 @@ async function refreshFromCloud(){
   if (sources){ applySources(sources); saveJSON(SOURCES_KEY, sourcesConfig()); }
   const lossr = (settings || []).find(s => s && s.type === 'lossreasons');
   if (lossr){ applyLossReasons(lossr); saveJSON(LOSS_REASONS_KEY, lossReasonsConfig()); }
+  const eb = (settings || []).find(s => s && s.type === 'emailbison');
+  if (eb){ applyEb(eb); saveJSON(EMAILBISON_KEY, ebConfig()); }
   return { blocked: false };
 }
 const uid = (p) => p + Math.random().toString(36).slice(2,8) + Date.now().toString(36).slice(-4);
@@ -4427,7 +4460,7 @@ function renderSettingsTabs(){
   const tabs = document.getElementById('settings-tabs');
   if (!tabs) return;
   tabs.innerHTML = '';
-  [['pricing','Pricing'],['goals','Goals'],['sources','Lead sources'],['lossreasons','Loss reasons'],['team','Team'],['rubric','Call rubric'],['automation','Automation'],['playbooks','Playbooks'],['sequences','Sequences'],['google','Google sync']].forEach(([key,label]) => {
+  [['pricing','Pricing'],['goals','Goals'],['sources','Lead sources'],['lossreasons','Loss reasons'],['team','Team'],['rubric','Call rubric'],['automation','Automation'],['playbooks','Playbooks'],['sequences','Sequences'],['emailbison','EmailBison'],['google','Google sync']].forEach(([key,label]) => {
     tabs.appendChild(el('button',{ class:'settings-tab' + (settingsTab===key?' active':''), type:'button', onClick:()=>{ settingsTab = key; renderSettingsPage(); window.scrollTo(0,0); } }, label));
   });
 }
@@ -4443,11 +4476,70 @@ function renderSettingsPage(){
   else if (settingsTab === 'sources') body.appendChild(renderSourceSettings());
   else if (settingsTab === 'lossreasons') body.appendChild(renderLossReasonSettings());
   else if (settingsTab === 'goals') body.appendChild(renderGoalsSettings());
+  else if (settingsTab === 'emailbison') body.appendChild(renderEmailBisonSettings());
   else if (settingsTab === 'google') body.appendChild(renderGoogleSettings());
   else {
     body.appendChild(el('p',{class:'settings-subtitle'}, 'Update pricing here and it flows into every deck’s pricing slide and proposal. Saved for the whole team.'));
     body.appendChild(renderSettingsForm());
   }
+}
+function renderEmailBisonSettings(){
+  const wrap = el('div',{});
+  wrap.appendChild(el('p',{class:'settings-subtitle'}, 'GearLocker finds, researches, and personalizes leads; EmailBison sends the cold sequence across your rotating inboxes. Push leads out from any lead page — replies, unsubscribes, and bounces flow back here automatically and surface as hot follow-ups.'));
+
+  // Setup checklist (the API key + webhook live outside the app).
+  const webhookUrl = SUPABASE_URL ? (SUPABASE_URL.replace(/\/$/,'') + '/functions/v1/emailbison-webhook') : '(connect the cloud first)';
+  const setup = el('div',{class:'eb-setup'});
+  setup.appendChild(el('div',{class:'eb-setup-h'}, 'One-time setup'));
+  setup.appendChild(el('ol',{class:'eb-setup-list'},
+    el('li',{html:'In EmailBison → <b>Settings → Developer API</b>, create an API token. Add it to Supabase as a function secret named <code>EMAILBISON_API_KEY</code> (Dashboard → Edge Functions → Secrets).'}),
+    el('li',{}, 'In EmailBison → Settings → Webhooks, add this URL so replies flow back:'),
+    el('li',{}, el('div',{class:'eb-url'}, el('code',{}, webhookUrl),
+      el('button',{class:'btn ghost sm', type:'button', onClick:()=>{ try{ navigator.clipboard.writeText(webhookUrl); showToast('Webhook URL copied.'); }catch(e){} }}, 'Copy'))),
+    el('li',{html:'Subscribe it to <b>Contact Replied</b>, <b>Contact Interested</b>, <b>Contact Unsubscribed</b>, and <b>Email Bounced</b> (Sent/Opened optional).'})));
+  wrap.appendChild(setup);
+
+  // Campaign picker.
+  const card = el('div',{class:'eb-settings-card'});
+  card.appendChild(el('div',{class:'eb-setup-h'}, 'Default campaign'));
+  const sel = el('select',{class:'eb-campaign-sel'});
+  const rebuild = (campaigns) => {
+    sel.innerHTML = '';
+    sel.appendChild(el('option',{value:''}, '— pick a campaign —'));
+    (campaigns||[]).forEach(c => sel.appendChild(el('option', Object.assign({value:String(c.id)}, String(c.id)===String(EB_CONFIG.campaignId)?{selected:'selected'}:{}), c.name + (c.status?(' · '+c.status):''))));
+    if (EB_CONFIG.campaignId && !(campaigns||[]).some(c=>String(c.id)===String(EB_CONFIG.campaignId))) sel.appendChild(el('option',{value:String(EB_CONFIG.campaignId), selected:'selected'}, (EB_CONFIG.campaignName||('Campaign '+EB_CONFIG.campaignId)) + ' (saved)'));
+  };
+  rebuild(EB_CONFIG.campaignId ? [{id:EB_CONFIG.campaignId, name:EB_CONFIG.campaignName||('Campaign '+EB_CONFIG.campaignId), status:''}] : []);
+  const loadBtn = el('button',{class:'btn sm', type:'button'}, 'Load campaigns');
+  const note = el('span',{class:'eb-load-note'}, '');
+  loadBtn.addEventListener('click', async ()=>{
+    if (!SUPABASE_URL){ note.textContent='Connect the cloud first.'; return; }
+    loadBtn.disabled=true; note.textContent='Loading…';
+    try {
+      const r = await fetch(SUPABASE_URL+'/functions/v1/emailbison-sync', { method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+SUPABASE_ANON_KEY, 'apikey':SUPABASE_ANON_KEY }, body: JSON.stringify({ action:'list-campaigns' }) });
+      const data = await r.json().catch(()=>({})); if (!r.ok) throw new Error(data.error||('Error '+r.status));
+      rebuild(data.campaigns||[]); note.textContent = (data.campaigns||[]).length + ' campaign(s) loaded.';
+    } catch(e){ note.textContent = 'Couldn’t load — check EMAILBISON_API_KEY. ('+e.message+')'; }
+    finally { loadBtn.disabled=false; }
+  });
+  card.appendChild(el('div',{class:'eb-row'}, sel, loadBtn));
+  card.appendChild(note);
+
+  const capInput = el('input',{type:'number', min:'1', step:'1', value:String(EB_CONFIG.dailyCap||50), class:'eb-cap'});
+  card.appendChild(el('div',{class:'eb-row eb-cap-row'}, el('label',{}, 'Daily send cap (deliverability guardrail)'), capInput));
+
+  const saveBtn = el('button',{class:'btn primary', type:'button'}, 'Save EmailBison settings');
+  const saveNote = el('span',{class:'eb-load-note'}, '');
+  saveBtn.addEventListener('click', ()=>{
+    EB_CONFIG.campaignId = sel.value || '';
+    EB_CONFIG.campaignName = sel.value ? (sel.options[sel.selectedIndex].text.split(' · ')[0].replace(/ \(saved\)$/,'')) : '';
+    EB_CONFIG.dailyCap = Number(capInput.value)||50;
+    EB_CONFIG.enabled = !!EB_CONFIG.campaignId;
+    saveEb(); saveNote.textContent = 'Saved.'; setTimeout(()=>{ saveNote.textContent=''; }, 2000);
+  });
+  card.appendChild(el('div',{class:'eb-row'}, saveBtn, saveNote));
+  wrap.appendChild(card);
+  return wrap;
 }
 function renderGoogleSettings(){
   const wrap = el('div',{});
@@ -5524,7 +5616,7 @@ function renderLeadOverview(deck, content, sp, contact){
   const mini = el('div',{class:'lead-timeline mini'}); actCard.appendChild(mini);
   fillTimeline(mini, deck, { limit:5, expandable:false });
   const banner = reEngageBanner(deck); if (banner) content.appendChild(banner);   // social-proof re-engage prompt
-  content.appendChild(el('div',{class:'lead-grid'}, left, el('div',{class:'lead-right'}, leadHealthCard(deck), leadResearchCard(deck), ovCard, nxCard, actCard)));
+  content.appendChild(el('div',{class:'lead-grid'}, left, el('div',{class:'lead-right'}, leadHealthCard(deck), leadResearchCard(deck), leadEmailBisonCard(deck), ovCard, nxCard, actCard)));
 }
 function leadHealthCard(deck){
   const h = dealHealth(deck);
@@ -5840,6 +5932,21 @@ function renderToday(force){
         el('button',{class:'btn sm primary', type:'button', onClick:()=>runSequenceStep(deck)}, isEmail ? 'Review & send' : 'Log & continue')));
     });
     body.appendChild(seqWrap);
+  }
+
+  // Hot replies from EmailBison — cold outreach that just got a response (top priority, deterministic)
+  const ebHot = ebHotLeads(inMyQueue);
+  if (ebHot.length){
+    const hw = el('div',{class:'today-reeng today-ebhot'});
+    hw.appendChild(el('div',{class:'today-group-h'}, '🔥 Replies from outreach', el('span',{class:'today-group-n'}, String(ebHot.length))));
+    ebHot.slice(0,6).forEach(d => hw.appendChild(el('div',{class:'reeng-card eb-hot-card'},
+      el('div',{class:'reeng-card-l'},
+        el('div',{class:'reeng-school'}, d.school + (d.ebStatus==='interested'?' · interested':'')),
+        el('div',{class:'reeng-sub'}, d.ebReply ? ('“' + String(d.ebReply).replace(/\n+/g,' ').slice(0,140) + (String(d.ebReply).length>140?'…':'') + '”') : 'Replied to your sequence — follow up')),
+      el('div',{class:'reeng-card-actions'},
+        el('button',{class:'btn sm ghost', type:'button', onClick:()=>openLead(d,'today')}, 'Open'),
+        el('button',{class:'btn sm primary', type:'button', onClick:()=>draftEbReply(d)}, 'Draft reply')))));
+    body.appendChild(hw);
   }
 
   // Warm re-engagement: dormant leads with a fresh same-state win to cite (deterministic, not from the AI briefing)
@@ -7223,7 +7330,7 @@ const REENGAGE_WIN_DAYS = 60;   // a win is "fresh" social proof for this long
 // Only a CLOSED-WON deal is truthfully "came onboard" — never cite a verbal commit as a signed customer.
 function winDateFor(d){ return dealStage(d)==='closedwon' ? closedWonDate(d) : null; }
 function isFreshWin(d){ const dt=winDateFor(d); if(!dt) return false; const days=dayDiff(new Date().toISOString(), dt); return days!=null && days>=0 && days<=REENGAGE_WIN_DAYS; }
-function isDormantLead(d){ return dealStage(d)==='closedlost' || dealNeedsNudge(d); }   // lost OR gone-quiet open
+function isDormantLead(d){ if (d && d.doNotContact) return false; return dealStage(d)==='closedlost' || dealNeedsNudge(d); }   // lost OR gone-quiet open (never opted-out)
 function dormantStatus(d){ return dealStage(d)==='closedlost' ? 'closed lost' : ('open · quiet ' + (daysQuiet(d)||'?') + 'd'); }
 // Best fresh win for a dormant lead: prefer a win in the lead's OWN state, else a neighboring state.
 function bestFreshWinForLead(d){
@@ -7343,6 +7450,93 @@ function leadResearchCard(deck){
   if (rs.fetchedAt) links.appendChild(el('span',{class:'research-when'}, 'Researched ' + fmtDay(rs.fetchedAt)));
   card.appendChild(links);
   if (Array.isArray(rs.filled) && rs.filled.length) card.appendChild(el('div',{class:'research-filled'}, '✓ Auto-filled empty fields: ' + rs.filled.join(', ')));
+  return card;
+}
+
+/* ---------- EmailBison sync ----------
+   CRM = brain (find/research/personalize/close). EmailBison = sending engine
+   (40 rotating inboxes, warmup, sequences). We push researched leads OUT with
+   personalization variables; replies/unsubs/bounces flow back via webhook and
+   flip the lead HOT / do-not-contact. Outreach never auto-fires here — the rep
+   sends; the webhook just wakes the closing loop. */
+const _ebInFlight = new Set();
+function ebReady(){ return !!(SUPABASE_URL && EB_CONFIG.campaignId); }
+function ebVarsFor(deck){
+  const r = deck.research || {};
+  const enr = deck.enrollment || (parseInt(String(r.enrollment||'').replace(/[^0-9]/g,''),10) || '');
+  const vars = { school:deck.school||'', state:deckState(deck)||'', district:r.district||'', enrollment:enr?String(enr):'', top_sport:(Array.isArray(deck.sports)&&deck.sports[0]) || (Array.isArray(r.sports)&&r.sports[0]) || '' };
+  const hint = (typeof reEngageHintForLead==='function') ? reEngageHintForLead(deck) : null;
+  if (hint && hint.winner) vars.nearby_win = hint.winner.school + ' (' + hint.state + ')';
+  return vars;
+}
+async function pushToEmailBison(deck){
+  const cur = DB.decks.find(x=>x.id===deck.id) || deck;
+  if (!SUPABASE_URL){ showToast('Cloud isn’t connected.'); return; }
+  if (!EB_CONFIG.campaignId){ showToast('Pick an EmailBison campaign in Settings → EmailBison first.'); if (typeof openSettingsPage==='function') openSettingsPage('emailbison'); return; }
+  if (!cur.contactEmail){ showToast('Add a contact email before sending to EmailBison.'); return; }
+  if (cur.doNotContact){ showToast(cur.school + ' opted out — not sending.'); return; }
+  if (_ebInFlight.has(cur.id)) return; _ebInFlight.add(cur.id);
+  if (state.view==='lead' && state.leadId===cur.id) renderLead(cur);
+  const vars = ebVarsFor(cur);
+  try {
+    const r = await fetch(SUPABASE_URL+'/functions/v1/emailbison-sync', { method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+SUPABASE_ANON_KEY, 'apikey':SUPABASE_ANON_KEY }, body: JSON.stringify({ action:'push', campaignId:EB_CONFIG.campaignId, variableNames:Object.keys(vars), leads:[{ firstName:cur.contactFirst||'', lastName:cur.contactLast||'', email:cur.contactEmail, company:cur.school||'', vars:vars }] }) });
+    const data = await r.json().catch(()=>({})); if (!r.ok) throw new Error(data.error||('Error '+r.status));
+    const res = (data.results && data.results[0]) || {};
+    if (res.error) throw new Error(res.error);
+    saveDeckPatch(cur, { ebCampaignId:EB_CONFIG.campaignId, ebCampaignName:EB_CONFIG.campaignName||'', ebLeadId:res.leadId||'', ebStatus:'sequenced', ebPushedAt:new Date().toISOString(), ebHot:false, history:pushHist(cur.history, 'email', 'Pushed to EmailBison · ' + (EB_CONFIG.campaignName||EB_CONFIG.campaignId)) });
+    showToast('Sent ' + cur.school + ' to EmailBison (' + (EB_CONFIG.campaignName||'campaign') + ').');
+  } catch(e){ showToast('EmailBison push failed: ' + e.message); }
+  finally { _ebInFlight.delete(cur.id); if (state.view==='lead' && state.leadId===cur.id){ const c2=DB.decks.find(x=>x.id===cur.id); if(c2) renderLead(c2); } }
+}
+function ebHotLeads(scopeFn){ return getDecks().filter(d => d.ebHot && !d.ebHandled && (scopeFn?scopeFn(d):true)).sort((a,b)=> String(b.ebRepliedAt||'').localeCompare(String(a.ebRepliedAt||''))); }
+function markEbHandled(deck){ const cur=DB.decks.find(x=>x.id===deck.id)||deck; saveDeckPatch(cur,{ ebHandled:true, ebHot:false }); if(state.view==='today') renderToday(); if(state.view==='lead'&&state.leadId===cur.id) renderLead(DB.decks.find(x=>x.id===cur.id)); }
+function draftEbReply(deck){
+  const cur = DB.decks.find(x=>x.id===deck.id) || deck;
+  const sp = getTeam().find(p=>p.id===cur.salespersonId) || null;
+  const first = cur.contactFirst || 'there';
+  const repFirst = (sp && sp.name) ? sp.name.split(' ')[0] : '';
+  const quoted = cur.ebReply ? ('\n\n> ' + String(cur.ebReply).replace(/\n+/g,' ').slice(0,300) + '\n') : '\n';
+  const body = 'Hi ' + first + ',\n\nThanks for getting back to me — glad GearLocker’s on your radar.' + quoted + '\nWould a quick 15-minute look next week work? I’ll walk your staff through how it gets your gear off spreadsheets and onto one screen.\n\nBest,\n' + repFirst;
+  openEmailModal(cur, { subject:'Re: GearLocker for ' + cur.school, body:body });
+  saveDeckPatch(cur, { ebHandled:true });
+}
+function leadEmailBisonCard(deck){
+  const card = el('div',{class:'lead-card eb-card'});
+  const busy = _ebInFlight.has(deck.id);
+  card.appendChild(el('div',{class:'lead-card-h'}, 'EmailBison'));
+  if (deck.doNotContact){
+    card.appendChild(el('div',{class:'eb-dnc'}, '⛔ Unsubscribed — do not contact. Excluded from outreach and re-engagement.'));
+    return card;
+  }
+  if (deck.ebHot){
+    card.appendChild(el('div',{class:'eb-hot'},
+      el('div',{class:'eb-hot-h'}, '🔥 ' + (deck.ebStatus==='interested'?'Marked interested':'Replied') + (deck.ebRepliedAt?(' · '+fmtDay(deck.ebRepliedAt)):'')),
+      deck.ebReply ? el('div',{class:'eb-reply'}, '“' + String(deck.ebReply).slice(0,400) + '”') : null,
+      el('div',{class:'eb-hot-actions'},
+        el('button',{class:'btn sm primary', type:'button', onClick:()=>draftEbReply(deck)}, 'Draft reply'),
+        el('button',{class:'btn ghost sm', type:'button', onClick:()=>markEbHandled(deck)}, 'Mark handled'))));
+    return card;
+  }
+  if (deck.ebBounced){
+    card.appendChild(el('div',{class:'eb-warn'}, '⚠︎ Email bounced — address looks invalid.'));
+    card.appendChild(el('button',{class:'btn sm', type:'button', onClick:()=>enrichLeadFor(deck,{force:true})}, 'Re-research for a better address'));
+    return card;
+  }
+  if (deck.ebStatus==='sequenced' || deck.ebStatus==='engaged'){
+    card.appendChild(el('div',{class:'eb-status'}, '✓ In sequence' + (deck.ebCampaignName?(' · '+deck.ebCampaignName):'') ));
+    const meta = [];
+    if (deck.ebLastSentAt) meta.push('last sent ' + fmtDay(deck.ebLastSentAt));
+    if (deck.ebLastOpenAt) meta.push('opened ' + fmtDay(deck.ebLastOpenAt));
+    if (meta.length) card.appendChild(el('div',{class:'eb-meta'}, meta.join(' · ')));
+    return card;
+  }
+  // Not yet sequenced.
+  if (!ebReady()){
+    card.appendChild(el('div',{class:'muted', style:'font-size:13px'}, SUPABASE_URL ? 'Set a campaign in Settings → EmailBison to send cold outreach.' : 'Connect the cloud to use EmailBison.'));
+    return card;
+  }
+  card.appendChild(el('div',{class:'muted', style:'font-size:13px', html:'Push this lead into your EmailBison campaign — it sends across your rotating inboxes with the research baked into the personalization.'}));
+  card.appendChild(el('button',{class:'btn sm primary', type:'button', disabled:(busy||!deck.contactEmail)?'':null, onClick:()=>pushToEmailBison(deck)}, busy?'Sending…':(deck.contactEmail?'Send to EmailBison':'No email on file')));
   return card;
 }
 async function openReEngageDraft(leadId, winnerId){
