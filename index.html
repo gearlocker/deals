@@ -10031,9 +10031,9 @@ async function composeSlidesPdf(setLabel) {
       canvas.style.transform = 'none';
       node.querySelectorAll('.pdf-btn, .pdf-hint, .hs-embed').forEach(e => { e.style.display = 'none'; });
       node.querySelectorAll('.hs-fallback').forEach(e => { e.style.display = 'flex'; });   // calendar iframe can't render to canvas — show the static card
-      staticizeFields(node);   // swap inputs → static text so values (e.g. enrollment) don't get clipped
       host.replaceChildren(node);
       setLabel('Rendering ' + (i + 1) + ' / ' + slides.length + '…');
+      staticizeFields(node);   // AFTER the node is in the DOM, so getComputedStyle is accurate (swaps inputs/slider → static visuals)
       await inlineRemoteImages(node, imgCache);
       const bg = node.classList.contains('dark') ? '#1E1715'
                : node.classList.contains('surface') ? '#F8F8F8' : '#ffffff';
