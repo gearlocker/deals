@@ -3498,6 +3498,24 @@ function deckReadiness(deck){
 }
 // Effective quote for a deck: tier-based defaults + any per-deal overrides/discount stored on deck.quote.
 function quoteFor(deck){
+  // Youth/club orgs price by # of teams — no onboarding fee, no SIS add-on.
+  if (deck && deck.segment === 'youth'){
+    const ytier = pickYouthTier(deck && deck.teamCount) || YOUTH_TIERS[1];
+    const q = (deck && deck.quote) || {};
+    const num = (v, def) => (v != null && v !== '') ? (Number(v) || 0) : def;
+    const baseAnnual = (ytier.annual != null) ? ytier.annual : 4990;   // Enterprise (custom) → quote off League Pro as a basis
+    const annual = num(q.annual, baseAnnual);
+    const onboarding = num(q.onboarding, 0);     // youth: free onboarding
+    const grossAnnual = annual;                  // no SIS add-on
+    let discount = 0, discountLabel = '';
+    if (q.discountType === 'pct' && Number(q.discountValue) > 0){ discount = Math.round(grossAnnual * Number(q.discountValue) / 100); discountLabel = Number(q.discountValue) + '% discount'; }
+    else if (q.discountType === 'amt' && Number(q.discountValue) > 0){ discount = Number(q.discountValue); discountLabel = 'Discount'; }
+    discount = Math.max(0, Math.min(discount, grossAnnual));
+    const netAnnual = grossAnnual - discount;
+    const year1 = netAnnual + onboarding;
+    const customized = (q.annual != null && q.annual !== '') || (q.onboarding != null && q.onboarding !== '') || discount > 0;
+    return { tier: ytier, segment:'youth', custom: !!ytier.custom, baseAnnual: ytier.annual, baseOnboarding: 0, annual, onboarding, sis:false, sisAnnual:0, grossAnnual, discount, discountLabel, netAnnual, year1, customized, q };
+  }
   const tier = pickTier(deck && deck.enrollment) || SCHOOL_TIERS[2];
   const q = (deck && deck.quote) || {};
   const num = (v, def) => (v != null && v !== '') ? (Number(v) || 0) : def;
@@ -4126,6 +4144,11 @@ function stageChip(deck){
 }
 function dealAmount(deck){
   if (deck && deck.amount != null && deck.amount !== '') return Number(deck.amount) || 0;   // manual forecast override wins
+  if (deck && deck.segment === 'youth'){
+    if (deck.teamCount && Number(deck.teamCount) > 0) return quoteFor(deck).netAnnual;
+    const yt = pickYouthTier(deck && deck.teamCount);
+    return yt && yt.annual ? yt.annual : 0;
+  }
   if (deck && deck.enrollment && Number(deck.enrollment) > 0) return quoteFor(deck).netAnnual;  // quoted annual (incl. overrides + discount)
   const t = pickTier(deck && deck.enrollment);   // else fall back to the matched pricing-tier annual
   return t ? t.annual : 0;
@@ -6515,18 +6538,22 @@ function qtLine(label, value, cls){
   return el('div',{class:'qt-line'+(cls?(' '+cls):'')}, el('span',{class:'qt-lk'}, label), el('span',{class:'qt-lv'}, value));
 }
 function renderLeadProposal(deck, content){
+  const youth = deck.segment === 'youth';
+  const sizeVal = youth ? deck.teamCount : deck.enrollment;
   const card = el('div',{class:'lead-card'}, el('div',{class:'lead-card-h'},'Proposal pricing'));
-  if (!(deck.enrollment && Number(deck.enrollment) > 0)){
+  if (!(sizeVal && Number(sizeVal) > 0)){
     card.appendChild(el('div',{class:'lead-empty', style:'padding:8px 0 4px'}, 'Add the ' + segOfMeta(deck).noun + '’s ' + segOfMeta(deck).sizeLabel.toLowerCase() + ' (' + segOfMeta(deck).sizeUnit + ') in the deck to calculate pricing.'));
     card.appendChild(el('button',{class:'btn sm primary', style:'margin-top:12px', type:'button', onClick:()=>openDeckTab(deck.id)}, 'Open the deck →'));
     content.appendChild(card);
     return;
   }
-  const tier = pickTier(deck.enrollment);
+  const tier = youth ? (pickYouthTier(deck.teamCount) || YOUTH_TIERS[1]) : pickTier(deck.enrollment);
+  const stdAnnual = (tier.annual != null) ? tier.annual : 4990;
+  const stdOnb = youth ? 0 : tier.onboarding;
   const q0 = deck.quote || {};
-  const annualInput = el('input',{type:'number', min:'0', step:'50', class:'qt-input', value: (q0.annual!=null?q0.annual:''), placeholder:String(tier.annual)});
-  const onbInput = el('input',{type:'number', min:'0', step:'50', class:'qt-input', value:(q0.onboarding!=null?q0.onboarding:''), placeholder:String(tier.onboarding)});
-  const sisCb = el('input',{type:'checkbox'}); sisCb.checked = (q0.sis!=null)?!!q0.sis:isRealSis(deck.sis);
+  const annualInput = el('input',{type:'number', min:'0', step:'50', class:'qt-input', value: (q0.annual!=null?q0.annual:''), placeholder:String(stdAnnual)});
+  const onbInput = el('input',{type:'number', min:'0', step:'50', class:'qt-input', value:(q0.onboarding!=null?q0.onboarding:''), placeholder:String(stdOnb)});
+  const sisCb = el('input',{type:'checkbox'}); sisCb.checked = !youth && ((q0.sis!=null)?!!q0.sis:isRealSis(deck.sis));
   const discType = el('select',{class:'qt-sel'}, el('option',{value:'none'},'No discount'), el('option',{value:'pct'},'% off'), el('option',{value:'amt'},'$ off')); discType.value = q0.discountType||'none';
   const discVal = el('input',{type:'number', min:'0', step:'1', class:'qt-input qt-disc', value:(q0.discountValue!=null?q0.discountValue:''), placeholder:'0'});
   const summary = el('div',{class:'qt-summary'});
@@ -6544,11 +6571,11 @@ function renderLeadProposal(deck, content){
   };
   [annualInput, onbInput, discVal].forEach(i => i.addEventListener('input', refresh));
   [sisCb, discType].forEach(i => i.addEventListener('change', refresh));
-  card.appendChild(el('div',{class:'qt-tier'}, el('span',{}, 'Enrollment ' + fmtNum(deck.enrollment) + ' students'), el('span',{class:'qt-tier-name'}, tier.name + ' plan · ' + tier.band)));
+  card.appendChild(el('div',{class:'qt-tier'}, el('span',{}, youth ? (fmtNum(deck.teamCount) + ' team' + (Number(deck.teamCount)===1?'':'s')) : ('Enrollment ' + fmtNum(deck.enrollment) + ' students')), el('span',{class:'qt-tier-name'}, tier.name + ' plan · ' + tier.band)));
   card.appendChild(el('div',{class:'qt-fields'},
-    qtField('Annual platform license', el('div',{class:'qt-inwrap'}, el('span',{class:'qt-$'},'$'), annualInput, el('span',{class:'qt-yr'},'/yr')), 'Standard ' + fmtMoney(tier.annual)),
-    qtField('One-time onboarding', el('div',{class:'qt-inwrap'}, el('span',{class:'qt-$'},'$'), onbInput), 'Standard ' + fmtMoney(tier.onboarding)),
-    qtField('SIS integration', el('label',{class:'qt-check'}, sisCb, el('span',{}, 'Include (+' + fmtMoney(SIS_ADDON_ANNUAL) + ' / yr)')), ''),
+    qtField('Annual platform license', el('div',{class:'qt-inwrap'}, el('span',{class:'qt-$'},'$'), annualInput, el('span',{class:'qt-yr'},'/yr')), 'Standard ' + fmtMoney(stdAnnual)),
+    qtField('One-time onboarding', el('div',{class:'qt-inwrap'}, el('span',{class:'qt-$'},'$'), onbInput), youth ? 'Free for youth orgs' : ('Standard ' + fmtMoney(tier.onboarding))),
+    youth ? null : qtField('SIS integration', el('label',{class:'qt-check'}, sisCb, el('span',{}, 'Include (+' + fmtMoney(SIS_ADDON_ANNUAL) + ' / yr)')), ''),
     qtField('Discount', el('div',{class:'qt-discrow'}, discType, discVal), '')
   ));
   card.appendChild(el('div',{class:'lead-card-h', style:'margin-top:20px'},'Quote summary'));
@@ -8280,18 +8307,21 @@ async function downloadDeckPdf(deck, btn){
 /* ---------- Branded PDF proposal (document format) ---------- */
 function proposalData(deck){
   const sp = getTeam().find(p => p.id === deck.salespersonId) || null;
-  const enrollment = deck.enrollment ? Number(deck.enrollment) : null;
+  const youth = deck.segment === 'youth';
+  const enrollment = youth ? null : (deck.enrollment ? Number(deck.enrollment) : null);
+  const teams = youth ? (deck.teamCount ? Number(deck.teamCount) : null) : null;
   const sports = Array.isArray(deck.sports) ? deck.sports : [];
   const quote = quoteFor(deck);
   let roi = null;
-  if (enrollment && sports.length){
-    const est = estimateGear(enrollment, sports);
+  const sizeOk = youth ? teams : enrollment;
+  if (sizeOk && sports.length){
+    const est = youth ? estimateGearYouth(teams, sports) : estimateGear(enrollment, sports);
     const lossPct = deck.lossPct != null ? deck.lossPct : 10;
-    roi = { totalValue: est.totalValue, programs: sports.length, lossPct,
+    roi = { totalValue: est.totalValue, programs: sports.length, players: est.totalAthletes, lossPct,
             lossValue: Math.round(est.totalValue * lossPct / 100),
             recovered: Math.round(est.totalValue * Math.max(lossPct - GL_LOSS_FLOOR, 0) / 100) };
   }
-  return { sp, enrollment, sports, tier: quote.tier, year1: quote.year1, realSis: quote.sis, roi, quote };
+  return { sp, youth, enrollment, teams, players: roi ? roi.players : null, sports, tier: quote.tier, year1: quote.year1, realSis: quote.sis, roi, quote };
 }
 function propPage(){
   const kids = Array.prototype.slice.call(arguments);
@@ -8315,7 +8345,9 @@ function buildProposalPages(deck){
     ['Check-in / check-out','Assign gear to an athlete in three taps. Every checkout and return is time-stamped, so you always know who has what, and when.'],
     ['Automatic parent notifications','When a player checks gear out, their parent gets an email with the item, a photo, and the replacement cost. Overdue items send their own reminders — no more 9 PM emails in May.'],
     ['QR label scanning','Scan a label to assign gear on the spot. One scan logs the item, names the athlete, and notifies the parent. No typing, no missed entries.'],
-    ['SIS roster sync','Rosters sync straight from your student information system — PowerSchool, Infinite Campus, Skyward, Clever, ClassLink, Veracross, and more. No SIS? Upload a CSV.'],
+    (d.youth
+      ? ['Roster upload','Send us your team rosters in any format — even a registration export — and we load them for you. No SIS required.']
+      : ['SIS roster sync','Rosters sync straight from your student information system — PowerSchool, Infinite Campus, Skyward, Clever, ClassLink, Veracross, and more. No SIS? Upload a CSV.']),
     ['Reporting & forecasting','See what’s missing, what’s damaged, and what’s due for replacement. Walk into the budget meeting with numbers instead of guesses.'],
     ['Role-based access','Coaches see only their teams. The AD sees the whole department — every program and every item, rolled up in one place.'],
     ['Works on any device','Phone, tablet, or laptop. Coaches check gear in and out from the locker room, the field, or the bus.']
@@ -8330,7 +8362,9 @@ function buildProposalPages(deck){
   ];
   const ROLLOUT = [
     ['Week 1','Setup','We build your organization and import your gear inventory.','GearLocker & you'],
-    ['Weeks 1–2','Sync','Connect your SIS or upload rosters — they stay current from then on.','GearLocker & IT'],
+    (d.youth
+      ? ['Weeks 1–2','Rosters','Upload your team rosters — we load them for you, ready for the season.','GearLocker & you']
+      : ['Weeks 1–2','Sync','Connect your SIS or upload rosters — they stay current from then on.','GearLocker & IT']),
     ['Weeks 2–3','Train','One hour with your coaches and admins. That’s the whole training.','GearLocker'],
     ['Week 3','QR codes','Optional QR labels, stickers, and bag tags arrive and get linked to your gear.','Your team'],
     ['Week 4','Launch','Coaches start checking gear in and out. You’re live.','Your team']
@@ -8378,12 +8412,12 @@ function buildProposalPages(deck){
   if (d.roi){
     page3.push(el('div',{class:'prop-section'},
       ...propSec('Your numbers','What ' + school + ' has on the line'),
-      el('p',{class:'prop-p'}, 'Based on ' + fmtNum(d.enrollment) + ' students and the ' + d.roi.programs + ' program' + (d.roi.programs===1?'':'s') + ' you run, here’s what’s at stake each year:'),
+      el('p',{class:'prop-p'}, 'Based on ' + (d.youth ? (fmtNum(d.teams) + ' team' + (d.teams===1?'':'s') + ' (~' + fmtNum(d.players) + ' players)') : (fmtNum(d.enrollment) + ' students')) + ' and the ' + d.roi.programs + ' sport' + (d.roi.programs===1?'':'s') + ' you run, here’s what’s at stake each year:'),
       el('div',{class:'prop-panel'}, el('div',{class:'prop-stats'},
         el('div',{class:'prop-stat'},
           el('div',{class:'prop-stat-label'},'Gear under management'),
           el('div',{class:'prop-stat-value'}, '~' + fmtMoney(d.roi.totalValue)),
-          el('div',{class:'prop-stat-sub'}, 'school-issued gear across ' + d.roi.programs + ' program' + (d.roi.programs===1?'':'s'))
+          el('div',{class:'prop-stat-sub'}, (d.youth?'club-issued':'school-issued') + ' gear across ' + d.roi.programs + ' sport' + (d.roi.programs===1?'':'s'))
         ),
         el('div',{class:'prop-stat'},
           el('div',{class:'prop-stat-label'},'Likely loss / year'),
@@ -8396,15 +8430,23 @@ function buildProposalPages(deck){
           el('div',{class:'prop-stat-sub'}, 'as loss drops from ' + d.roi.lossPct + '% to ~3% verified')
         )
       )),
-      el('div',{class:'prop-note'}, 'Figures use a conservative model — NFHS participation rates and industry replacement values for school-issued gear only. Personal equipment is excluded.')
+      el('div',{class:'prop-note'}, d.youth
+        ? 'Figures use a conservative model — typical youth roster sizes and industry replacement values for club-issued gear only. Personal equipment is excluded.'
+        : 'Figures use a conservative model — NFHS participation rates and industry replacement values for school-issued gear only. Personal equipment is excluded.')
     ));
   }
-  page3.push(el('div',{class:'prop-section'},
-    ...propSec('One system','If you issue it, GearLocker tracks it'),
-    el('p',{class:'prop-p'}, 'Built for athletics first — but it handles everything else your school hands out:'),
-    el('ul',{class:'prop-bullets'}, ...SCOPE.map(s => el('li',{}, el('b',{}, s[0]), ' — ' + s[1]))),
-    d.sports.length ? el('p',{class:'prop-p', style:'margin-top:14px'}, el('b',{style:'color:var(--ink)'}, 'You told us ' + school + ' runs: '), d.sports.join(', ') + '.') : null
-  ));
+  page3.push(d.youth
+    ? el('div',{class:'prop-section'},
+        ...propSec('One program','Every team, every season, one place'),
+        el('p',{class:'prop-p'}, 'Built for how youth programs run — every jersey, helmet, and bag across all your teams in one place, reissued season to season instead of re-bought. New volunteer coaches check gear in and out from their phone, no training required.'),
+        d.sports.length ? el('p',{class:'prop-p', style:'margin-top:14px'}, el('b',{style:'color:var(--ink)'}, 'You told us ' + school + ' runs: '), d.sports.join(', ') + '.') : null
+      )
+    : el('div',{class:'prop-section'},
+        ...propSec('One system','If you issue it, GearLocker tracks it'),
+        el('p',{class:'prop-p'}, 'Built for athletics first — but it handles everything else your school hands out:'),
+        el('ul',{class:'prop-bullets'}, ...SCOPE.map(s => el('li',{}, el('b',{}, s[0]), ' — ' + s[1]))),
+        d.sports.length ? el('p',{class:'prop-p', style:'margin-top:14px'}, el('b',{style:'color:var(--ink)'}, 'You told us ' + school + ' runs: '), d.sports.join(', ') + '.') : null
+      ));
   pages.push(propPage(...page3));
 
   // PAGE 4 — getting started / rollout
@@ -8425,19 +8467,21 @@ function buildProposalPages(deck){
     'Check in / check out with full assignment history',
     'Automated parent notification emails',
     'QR code label scanning (labels sold separately)',
-    'SIS integrations and roster sync',
+    (d.youth ? 'Roster upload — we load your teams for you' : 'SIS integrations and roster sync'),
     'Reporting, budgeting, and replacement forecasting'
   ];
   pages.push(propPage(
     el('div',{class:'prop-section'},
       ...propSec('Investment','Pricing & licensing'),
-      el('p',{class:'prop-p'}, 'Pricing scales with enrollment, so a small program never pays like a district. At ' + (d.enrollment ? fmtNum(d.enrollment) + ' students' : 'your enrollment') + ', ' + school + ' lands on the ' + d.tier.name + ' plan (' + d.tier.band + ').'),
+      el('p',{class:'prop-p'}, d.youth
+        ? ('Pricing scales with your number of teams — and youth orgs pay no onboarding fee. At ' + (d.teams ? fmtNum(d.teams) + ' team' + (d.teams===1?'':'s') : 'your size') + ', ' + school + ' lands on the ' + d.tier.name + ' plan (' + d.tier.band + ').')
+        : ('Pricing scales with enrollment, so a small program never pays like a district. At ' + (d.enrollment ? fmtNum(d.enrollment) + ' students' : 'your enrollment') + ', ' + school + ' lands on the ' + d.tier.name + ' plan (' + d.tier.band + ').')),
       el('p',{class:'prop-p', style:'font-weight:500;color:var(--ink)'}, 'The annual license covers your whole organization:'),
       el('ul',{class:'prop-bullets', style:'margin-bottom:20px'}, ...included.map(b => el('li',{}, b))),
       el('table',{class:'prop-table prop-pricing'},
         el('thead',{}, el('tr',{}, el('th',{},'Description'), el('th',{},'Qty'), el('th',{},'Rate'), el('th',{},'Amount'))),
         el('tbody',{},
-          el('tr',{}, el('td',{class:'feat-name', style:'width:auto'},'One-time onboarding & setup'), el('td',{},'1'), el('td',{}, fmtMoney(d.quote.onboarding)), el('td',{}, fmtMoney(d.quote.onboarding))),
+          el('tr',{}, el('td',{class:'feat-name', style:'width:auto'},'One-time onboarding & setup'), el('td',{},'1'), el('td',{}, (d.youth && !d.quote.onboarding) ? 'Free' : fmtMoney(d.quote.onboarding)), el('td',{}, (d.youth && !d.quote.onboarding) ? 'Free' : fmtMoney(d.quote.onboarding))),
           el('tr',{}, el('td',{class:'feat-name', style:'width:auto'}, d.tier.name + ' annual subscription'), el('td',{},'1 yr'), el('td',{}, fmtMoney(d.quote.annual) + ' / yr'), el('td',{}, fmtMoney(d.quote.annual))),
           d.quote.sis ? el('tr',{}, el('td',{class:'feat-name', style:'width:auto'},'SIS integration add-on'), el('td',{},'1 yr'), el('td',{}, fmtMoney(d.quote.sisAnnual) + ' / yr'), el('td',{}, fmtMoney(d.quote.sisAnnual))) : null,
           d.quote.discount > 0 ? el('tr',{}, el('td',{class:'feat-name', style:'width:auto'}, d.quote.discountLabel || 'Discount'), el('td',{},''), el('td',{},''), el('td',{}, '− ' + fmtMoney(d.quote.discount))) : null,
