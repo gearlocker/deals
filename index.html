@@ -3576,9 +3576,9 @@ function applyLossReasons(cfg){ if (cfg && Array.isArray(cfg.list)){ const l = c
 function saveLossReasons(list){ applyLossReasons({ list }); saveJSON(LOSS_REASONS_KEY, lossReasonsConfig()); if (cloudOn()) sbUpsert('settings', 'lossreasons', lossReasonsConfig()).catch(e => console.warn('loss reasons sync failed', e)); }
 
 const EMAILBISON_KEY = 'gl_emailbison_v1';
-let EB_CONFIG = { enabled:false, campaignId:'', campaignName:'', dailyCap:50 };
-function ebConfig(){ return { type:'emailbison', enabled:!!EB_CONFIG.enabled, campaignId:String(EB_CONFIG.campaignId||''), campaignName:EB_CONFIG.campaignName||'', dailyCap:Number(EB_CONFIG.dailyCap)||50 }; }
-function applyEb(cfg){ if (cfg && typeof cfg === 'object'){ if (typeof cfg.enabled!=='undefined') EB_CONFIG.enabled=!!cfg.enabled; if (typeof cfg.campaignId!=='undefined') EB_CONFIG.campaignId=String(cfg.campaignId||''); if (typeof cfg.campaignName!=='undefined') EB_CONFIG.campaignName=cfg.campaignName||''; if (cfg.dailyCap!=null && cfg.dailyCap!=='') EB_CONFIG.dailyCap=Number(cfg.dailyCap)||50; } }
+let EB_CONFIG = { enabled:false, baseUrl:'', campaignId:'', campaignName:'', dailyCap:50 };
+function ebConfig(){ return { type:'emailbison', enabled:!!EB_CONFIG.enabled, baseUrl:EB_CONFIG.baseUrl||'', campaignId:String(EB_CONFIG.campaignId||''), campaignName:EB_CONFIG.campaignName||'', dailyCap:Number(EB_CONFIG.dailyCap)||50 }; }
+function applyEb(cfg){ if (cfg && typeof cfg === 'object'){ if (typeof cfg.enabled!=='undefined') EB_CONFIG.enabled=!!cfg.enabled; if (typeof cfg.baseUrl!=='undefined') EB_CONFIG.baseUrl=cfg.baseUrl||''; if (typeof cfg.campaignId!=='undefined') EB_CONFIG.campaignId=String(cfg.campaignId||''); if (typeof cfg.campaignName!=='undefined') EB_CONFIG.campaignName=cfg.campaignName||''; if (cfg.dailyCap!=null && cfg.dailyCap!=='') EB_CONFIG.dailyCap=Number(cfg.dailyCap)||50; } }
 function saveEb(){ saveJSON(EMAILBISON_KEY, ebConfig()); if (cloudOn()) sbUpsert('settings', 'emailbison', ebConfig()).catch(e => console.warn('emailbison sync failed', e)); }
 function subsFor(name){ const s = SOURCES.find(x => x.name === name); return s ? s.subs : []; }
 /* ---- Monthly goals (dashboard pacing) ---- */
@@ -4499,9 +4499,13 @@ function renderEmailBisonSettings(){
     el('li',{html:'Subscribe it to <b>Contact Replied</b>, <b>Contact Interested</b>, <b>Contact Unsubscribed</b>, and <b>Email Bounced</b> (Sent/Opened optional).'})));
   wrap.appendChild(setup);
 
-  // Campaign picker.
+  // Instance URL + campaign picker.
   const card = el('div',{class:'eb-settings-card'});
-  card.appendChild(el('div',{class:'eb-setup-h'}, 'Default campaign'));
+  card.appendChild(el('div',{class:'eb-setup-h'}, 'Your EmailBison instance'));
+  const urlInput = el('input',{type:'text', value:EB_CONFIG.baseUrl||'', placeholder:'https://send.youragency.com', class:'eb-campaign-sel'});
+  card.appendChild(el('div',{class:'eb-row'}, urlInput));
+  card.appendChild(el('div',{class:'eb-load-note'}, 'The URL you log into EmailBison at — each account has its own. Your API token only works against this host.'));
+  card.appendChild(el('div',{class:'eb-setup-h', style:'margin-top:16px'}, 'Default campaign'));
   const sel = el('select',{class:'eb-campaign-sel'});
   const rebuild = (campaigns) => {
     sel.innerHTML = '';
@@ -4514,12 +4518,13 @@ function renderEmailBisonSettings(){
   const note = el('span',{class:'eb-load-note'}, '');
   loadBtn.addEventListener('click', async ()=>{
     if (!SUPABASE_URL){ note.textContent='Connect the cloud first.'; return; }
+    if (!urlInput.value.trim()){ note.textContent='Enter your EmailBison URL above first.'; urlInput.focus(); return; }
     loadBtn.disabled=true; note.textContent='Loading…';
     try {
-      const r = await fetch(SUPABASE_URL+'/functions/v1/emailbison-sync', { method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+SUPABASE_ANON_KEY, 'apikey':SUPABASE_ANON_KEY }, body: JSON.stringify({ action:'list-campaigns' }) });
+      const r = await fetch(SUPABASE_URL+'/functions/v1/emailbison-sync', { method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+SUPABASE_ANON_KEY, 'apikey':SUPABASE_ANON_KEY }, body: JSON.stringify({ action:'list-campaigns', baseUrl:urlInput.value.trim() }) });
       const data = await r.json().catch(()=>({})); if (!r.ok) throw new Error(data.error||('Error '+r.status));
       rebuild(data.campaigns||[]); note.textContent = (data.campaigns||[]).length + ' campaign(s) loaded.';
-    } catch(e){ note.textContent = 'Couldn’t load — check EMAILBISON_API_KEY. ('+e.message+')'; }
+    } catch(e){ note.textContent = 'Couldn’t load — check the URL and EMAILBISON_API_KEY. ('+e.message+')'; }
     finally { loadBtn.disabled=false; }
   });
   card.appendChild(el('div',{class:'eb-row'}, sel, loadBtn));
@@ -4531,6 +4536,7 @@ function renderEmailBisonSettings(){
   const saveBtn = el('button',{class:'btn primary', type:'button'}, 'Save EmailBison settings');
   const saveNote = el('span',{class:'eb-load-note'}, '');
   saveBtn.addEventListener('click', ()=>{
+    EB_CONFIG.baseUrl = urlInput.value.trim();
     EB_CONFIG.campaignId = sel.value || '';
     EB_CONFIG.campaignName = sel.value ? (sel.options[sel.selectedIndex].text.split(' · ')[0].replace(/ \(saved\)$/,'')) : '';
     EB_CONFIG.dailyCap = Number(capInput.value)||50;
@@ -7460,7 +7466,7 @@ function leadResearchCard(deck){
    flip the lead HOT / do-not-contact. Outreach never auto-fires here — the rep
    sends; the webhook just wakes the closing loop. */
 const _ebInFlight = new Set();
-function ebReady(){ return !!(SUPABASE_URL && EB_CONFIG.campaignId); }
+function ebReady(){ return !!(SUPABASE_URL && EB_CONFIG.baseUrl && EB_CONFIG.campaignId); }
 function ebVarsFor(deck){
   const r = deck.research || {};
   const enr = deck.enrollment || (parseInt(String(r.enrollment||'').replace(/[^0-9]/g,''),10) || '');
@@ -7472,6 +7478,7 @@ function ebVarsFor(deck){
 async function pushToEmailBison(deck){
   const cur = DB.decks.find(x=>x.id===deck.id) || deck;
   if (!SUPABASE_URL){ showToast('Cloud isn’t connected.'); return; }
+  if (!EB_CONFIG.baseUrl){ showToast('Add your EmailBison instance URL in Settings → EmailBison first.'); if (typeof openSettingsPage==='function') openSettingsPage('emailbison'); return; }
   if (!EB_CONFIG.campaignId){ showToast('Pick an EmailBison campaign in Settings → EmailBison first.'); if (typeof openSettingsPage==='function') openSettingsPage('emailbison'); return; }
   if (!cur.contactEmail){ showToast('Add a contact email before sending to EmailBison.'); return; }
   if (cur.doNotContact){ showToast(cur.school + ' opted out — not sending.'); return; }
@@ -7479,7 +7486,7 @@ async function pushToEmailBison(deck){
   if (state.view==='lead' && state.leadId===cur.id) renderLead(cur);
   const vars = ebVarsFor(cur);
   try {
-    const r = await fetch(SUPABASE_URL+'/functions/v1/emailbison-sync', { method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+SUPABASE_ANON_KEY, 'apikey':SUPABASE_ANON_KEY }, body: JSON.stringify({ action:'push', campaignId:EB_CONFIG.campaignId, variableNames:Object.keys(vars), leads:[{ firstName:cur.contactFirst||'', lastName:cur.contactLast||'', email:cur.contactEmail, company:cur.school||'', vars:vars }] }) });
+    const r = await fetch(SUPABASE_URL+'/functions/v1/emailbison-sync', { method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+SUPABASE_ANON_KEY, 'apikey':SUPABASE_ANON_KEY }, body: JSON.stringify({ action:'push', baseUrl:EB_CONFIG.baseUrl, campaignId:EB_CONFIG.campaignId, variableNames:Object.keys(vars), leads:[{ firstName:cur.contactFirst||'', lastName:cur.contactLast||'', email:cur.contactEmail, company:cur.school||'', vars:vars }] }) });
     const data = await r.json().catch(()=>({})); if (!r.ok) throw new Error(data.error||('Error '+r.status));
     const res = (data.results && data.results[0]) || {};
     if (res.error) throw new Error(res.error);
