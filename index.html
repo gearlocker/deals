@@ -1864,6 +1864,16 @@
   .lossbar-track { height:14px; background:var(--surface); border-radius:999px; overflow:hidden; }
   .lossbar-fill { height:100%; background:#dc2626; border-radius:999px; opacity:.82; }
   .lossbar-n { font-size:12px; color:var(--ink-4); text-align:right; white-space:nowrap; }
+  /* win/loss headline band */
+  .wl-band { display:flex; align-items:center; gap:32px; flex-wrap:wrap; }
+  .wl-rate-box { flex:none; }
+  .wl-rate { font-size:52px; font-weight:700; letter-spacing:-.03em; line-height:1; color:var(--ink); }
+  .wl-rate-d { margin-top:8px; font-size:12px; }
+  .wl-stats { display:flex; gap:14px; flex-wrap:wrap; flex:1; }
+  .wl-stat { border:1px solid var(--border); border-radius:14px; padding:14px 18px; min-width:150px; }
+  .wl-stat-v { font-size:19px; font-weight:700; letter-spacing:-.01em; color:var(--ink); }
+  .wl-stat-v.won { color:#16a34a; } .wl-stat-v.lost { color:#dc2626; }
+  .wl-stat-l { font-size:11px; color:var(--ink-4); margin-top:5px; text-transform:uppercase; letter-spacing:.04em; }
   .fc-plan { margin-top:16px; border-top:1px solid var(--border); padding-top:12px; display:flex; flex-direction:column; gap:9px; }
   .fc-plan-row { display:flex; justify-content:space-between; align-items:center; font-size:13.5px; color:var(--ink-3); }
   .fc-plan-row b { color:var(--ink); font-weight:700; }
@@ -6689,6 +6699,8 @@ function renderMetrics(){
     content.appendChild(lossReasonSection(decks));
   } else if (tab === 'sources'){
     content.appendChild(sourceSection(decks, inR));
+  } else if (tab === 'winloss'){
+    content.appendChild(winLossSection(decks, inR, prevInR, repName));
   } else if (tab === 'activity'){
     content.appendChild(activitySection(decks, team, inR, repName));
   }
@@ -6744,6 +6756,129 @@ function lossReasonSection(decks){
   card.appendChild(wrap);
   return card;
 }
+// ===================== Win/Loss intelligence =====================
+// Shared analysis over a deck set. inWin(dateStr) scopes which CLOSES count (default: all-time).
+function computeWinLoss(decks, inWin, repName){
+  inWin = inWin || (()=>true);
+  repName = repName || (id=>id||'Unassigned');
+  const won = decks.filter(d=>dealStage(d)==='closedwon' && inWin(closedWonDate(d)));
+  const lost = decks.filter(d=>dealStage(d)==='closedlost' && inWin(lostDate(d)));
+  const wonAmt = won.reduce((a,d)=>a+dealAmount(d),0), lostAmt = lost.reduce((a,d)=>a+dealAmount(d),0);
+  const winRate = (won.length+lost.length) ? Math.round(100*won.length/(won.length+lost.length)) : null;
+  function dim(keyFn){
+    const map={};
+    won.forEach(d=>{ const k=keyFn(d); (map[k]||(map[k]={key:k,won:0,lost:0,wonAmt:0,lostAmt:0})).won++; map[k].wonAmt+=dealAmount(d); });
+    lost.forEach(d=>{ const k=keyFn(d); (map[k]||(map[k]={key:k,won:0,lost:0,wonAmt:0,lostAmt:0})).lost++; map[k].lostAmt+=dealAmount(d); });
+    return Object.keys(map).map(k=>map[k]).map(m=>{ m.total=m.won+m.lost; m.winRate=m.total?Math.round(100*m.won/m.total):null; return m; }).sort((a,b)=> b.total-a.total || b.wonAmt-a.wonAmt);
+  }
+  const sizeBand=d=>{ const a=dealAmount(d); if(!a) return 'Unsized'; if(a<20000) return 'Under $20k'; if(a<40000) return '$20k–$40k'; return '$40k+'; };
+  const bySource=dim(d=>(d.leadSource||'').trim()||'Unspecified'), byRep=dim(d=>repName(d.salespersonId)), bySize=dim(sizeBand);
+  const lr={}; lost.forEach(d=>{ const r=(d.lostReason||'').trim()||'Unspecified'; (lr[r]||(lr[r]={reason:r,count:0,amt:0})).count++; lr[r].amt+=dealAmount(d); });
+  const lossReasons=Object.keys(lr).map(k=>lr[k]).sort((a,b)=>b.count-a.count);
+  const order=['verbalcommit','democompleted','demoscheduled','noshow','newlead'], rank={newlead:0,noshow:1,demoscheduled:1,democompleted:2,verbalcommit:3};
+  const furthest=d=>{ const sd=d.stageDates||{}; for (let i=0;i<order.length;i++){ if (sd[order[i]]) return order[i]; } if (committedDate(d)) return 'verbalcommit'; if (demoDate(d)) return 'democompleted'; return 'newlead'; };
+  const wd={}; lost.forEach(d=>{ const s=furthest(d); (wd[s]||(wd[s]={stage:s,label:stageMeta(s).short,count:0,amt:0})).count++; wd[s].amt+=dealAmount(d); });
+  const whereDie=Object.keys(wd).map(k=>wd[k]).sort((a,b)=>(rank[b.stage]||0)-(rank[a.stage]||0));
+  const cyc=(arr,endFn)=>{ const xs=arr.map(d=>{ const e=endFn(d); return (e&&d.createdAt)?dayDiff(e,d.createdAt):null; }).filter(v=>v!=null&&v>=0); return xs.length?Math.round(xs.reduce((a,b)=>a+b,0)/xs.length):null; };
+  return { won:won.length, lost:lost.length, wonAmt, lostAmt, winRate, bySource, byRep, bySize, lossReasons, whereDie, cycleWon:cyc(won,closedWonDate), cycleLost:cyc(lost,lostDate) };
+}
+function wlRateDelta(cur, prev){
+  if (cur==null || prev==null) return null;
+  const d = cur - prev; if (d===0) return el('span',{class:'kpi-d flat'},'flat vs prior');
+  return el('span',{class:'kpi-d '+(d>0?'up':'down')}, (d>0?'▲ ':'▼ ') + Math.abs(d) + 'pts vs prior');
+}
+function wlDimCard(title, label, rows){
+  const card=el('div',{class:'metric-card'});
+  card.appendChild(el('div',{class:'metric-h'}, el('span',{}, title)));
+  card.appendChild(el('div',{class:'metric-table-scroll'}, el('table',{class:'metric-table'},
+    el('thead',{}, el('tr',{}, el('th',{}, label), el('th',{class:'num'},'Win rate'), el('th',{class:'num'},'W/L'), el('th',{class:'num'},'Won $'), el('th',{class:'num'},'Lost $'))),
+    el('tbody',{}, ...(rows.length ? rows.map(m=>el('tr',{},
+      el('td',{}, m.key),
+      el('td',{class:'num'}, m.winRate!=null?(m.winRate+'%'):'—'),
+      el('td',{class:'num'}, m.won+' / '+m.lost),
+      el('td',{class:'num'}, fmtUSD(m.wonAmt)),
+      el('td',{class:'num'}, fmtUSD(m.lostAmt))))
+      : [el('tr',{}, el('td',{class:'rep-empty', colspan:'5'}, 'No closes in this window.'))])))));
+  return card;
+}
+function wlBars(title, infoText, rows, total, accent){
+  const card=el('div',{class:'metric-card'});
+  card.appendChild(el('div',{class:'metric-h'}, el('span',{}, title), infoText?infoTip(infoText):null));
+  if (!rows.length){ card.appendChild(el('div',{class:'lead-empty', style:'padding:20px 4px'},'Nothing to show yet.')); return card; }
+  const max=Math.max(1, ...rows.map(r=>r.count));
+  const wrap=el('div',{class:'lossbar-wrap'});
+  rows.forEach(r => wrap.appendChild(el('div',{class:'lossbar-row'},
+    el('div',{class:'lossbar-label'}, r.label||r.reason),
+    el('div',{class:'lossbar-track'}, el('div',{class:'lossbar-fill', style:'width:'+Math.max(4,Math.round(100*r.count/max))+'%'+(accent?(';background:'+accent):'')})),
+    el('div',{class:'lossbar-n'}, r.count + ' · ' + fmtMoneyK(r.amt)))));
+  card.appendChild(wrap);
+  return card;
+}
+function winLossSnapshot(decks, inR, repName){
+  const wl=computeWinLoss(decks, inR, repName);
+  return {
+    window:'the selected dashboard window', analysis:'win/loss',
+    overall:{ dealsWon:wl.won, dealsLost:wl.lost, winRatePct:wl.winRate, revenueWon:wl.wonAmt, revenueLost:wl.lostAmt, avgDaysToWin:wl.cycleWon, avgDaysToLose:wl.cycleLost },
+    winRateBySource: wl.bySource.map(m=>({source:m.key, winRatePct:m.winRate, won:m.won, lost:m.lost, wonDollars:m.wonAmt, lostDollars:m.lostAmt})),
+    winRateByRep: wl.byRep.map(m=>({rep:m.key, winRatePct:m.winRate, won:m.won, lost:m.lost})),
+    winRateByDealSize: wl.bySize.map(m=>({band:m.key, winRatePct:m.winRate, won:m.won, lost:m.lost})),
+    lossReasons: wl.lossReasons.map(r=>({reason:r.reason, count:r.count, dollarsLost:r.amt})),
+    whereDealsDie: wl.whereDie.map(s=>({furthestStageReached:s.label, count:s.count, dollarsLost:s.amt}))
+  };
+}
+async function generateWinLossSummary(container, btn, decks, inR, repName){
+  if (!SUPABASE_URL){ container.innerHTML=''; container.appendChild(el('div',{class:'dai-empty'},'Cloud isn’t configured, so the AI summary is unavailable.')); return; }
+  if (btn){ btn.disabled=true; btn.textContent='Analyzing…'; }
+  container.innerHTML=''; container.appendChild(el('div',{class:'dai-loading'},'Reading the win/loss patterns…'));
+  try {
+    const snap=winLossSnapshot(decks, inR, repName);
+    const r=await fetch(SUPABASE_URL + '/functions/v1/dashboard-summary', {
+      method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+SUPABASE_ANON_KEY, 'apikey':SUPABASE_ANON_KEY },
+      body: JSON.stringify({ window:'win/loss · '+snap.window, rep:'win/loss analysis for the team', metrics:snap })
+    });
+    const res=await r.json().catch(()=>({error:'Unexpected response.'}));
+    if (!r.ok) throw new Error(res.error || ('Error '+r.status));
+    renderDashSummary(container, res);
+    state.winLossAiCache={ key:dashSummaryKey(), data:res };
+  } catch(e){ container.innerHTML=''; container.appendChild(el('div',{class:'dai-err'}, 'Couldn’t generate: '+(e&&e.message?e.message:e))); }
+  finally { if(btn){ btn.disabled=false; btn.textContent='↻ Refresh'; } }
+}
+function winLossAiCard(decks, inR, repName){
+  const card=el('div',{class:'metric-card dai-card'}), bodyEl=el('div',{class:'dai-body'});
+  const btn=el('button',{class:'btn ghost sm', type:'button'}, 'Generate');
+  btn.addEventListener('click', ()=>generateWinLossSummary(bodyEl, btn, decks, inR, repName));
+  card.appendChild(el('div',{class:'metric-h'}, el('span',{}, '✨ What’s driving wins & losses'),
+    infoTip('AI reads the win/loss patterns in this window — which sources/reps/sizes convert, why we lose, where deals die — and writes the takeaways. One AI call, cached per window.'),
+    el('div',{class:'metric-h-actions'}, btn)));
+  card.appendChild(bodyEl);
+  if (state.winLossAiCache && state.winLossAiCache.key===dashSummaryKey()){ renderDashSummary(bodyEl, state.winLossAiCache.data); btn.textContent='↻ Refresh'; }
+  else bodyEl.appendChild(el('div',{class:'dai-empty'}, 'Click Generate for an AI read on what’s winning and losing — and why.'));
+  return card;
+}
+function winLossSection(decks, inR, prevInR, repName){
+  const wl=computeWinLoss(decks, inR, repName), prev=computeWinLoss(decks, prevInR, repName);
+  const wrap=el('div',{});
+  wrap.appendChild(winLossAiCard(decks, inR, repName));
+  // headline band
+  const band=el('div',{class:'metric-card'});
+  band.appendChild(el('div',{class:'metric-h'}, el('span',{},'Win rate'),
+    infoTip('Of deals CLOSED in this window, the share won: won ÷ (won + lost). Widen the date range for a more stable read. Days-to-win/lose is the average from lead-created to close.')));
+  band.appendChild(el('div',{class:'wl-band'},
+    el('div',{class:'wl-rate-box'}, el('div',{class:'wl-rate'}, wl.winRate!=null?(wl.winRate+'%'):'—'), el('div',{class:'wl-rate-d'}, wlRateDelta(wl.winRate, prev.winRate)||el('span',{class:'muted'},'win rate'))),
+    el('div',{class:'wl-stats'},
+      el('div',{class:'wl-stat'}, el('div',{class:'wl-stat-v won'}, wl.won + ' · ' + fmtUSD(wl.wonAmt)), el('div',{class:'wl-stat-l'}, 'Won')),
+      el('div',{class:'wl-stat'}, el('div',{class:'wl-stat-v lost'}, wl.lost + ' · ' + fmtUSD(wl.lostAmt)), el('div',{class:'wl-stat-l'}, 'Lost')),
+      el('div',{class:'wl-stat'}, el('div',{class:'wl-stat-v'}, (wl.cycleWon!=null?wl.cycleWon+'d':'—') + ' / ' + (wl.cycleLost!=null?wl.cycleLost+'d':'—')), el('div',{class:'wl-stat-l'}, 'Avg days to win / lose')))));
+  wrap.appendChild(band);
+  wrap.appendChild(el('div',{class:'metric-grid'},
+    wlDimCard('Win rate by source','Source', wl.bySource),
+    wlDimCard('Win rate by rep','Rep', wl.byRep),
+    wlDimCard('Win rate by deal size','Band', wl.bySize)));
+  wrap.appendChild(el('div',{class:'metric-grid'},
+    wlBars('Why we lose', 'Loss reasons captured on closed-lost deals in this window — count and dollars lost. Edit the list in Settings → Loss reasons.', wl.lossReasons.map(r=>({label:r.reason, count:r.count, amt:r.amt})), wl.lost, '#dc2626'),
+    wlBars('Where deals die', 'Of lost deals, the furthest funnel stage they reached before dying — shows where in the pipeline we bleed.', wl.whereDie.map(s=>({label:s.label, count:s.count, amt:s.amt})), wl.lost, '#d97706')));
+  return wrap;
+}
 // Download the (rep-filtered) deal list as CSV for finance/ops.
 function exportMetricsCsv(decks){
   const team=getTeam();
@@ -6758,7 +6893,7 @@ function exportMetricsCsv(decks){
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 function metricsTabBar(){
-  const tabs = [['overview','Overview'],['goals','Goals'],['trends','Trends'],['funnel','Funnel'],['sources','Sources'],['activity','Activity']];
+  const tabs = [['overview','Overview'],['goals','Goals'],['trends','Trends'],['funnel','Funnel'],['sources','Sources'],['winloss','Win/Loss'],['activity','Activity']];
   const active = state.metricsTab || 'overview';
   return el('div',{class:'mx-tabs'}, ...tabs.map(([k,lab]) =>
     el('button',{class:'mx-tab'+(active===k?' active':''), type:'button', onClick:()=>{ state.metricsTab=k; renderMetrics(); window.scrollTo(0,0); }}, lab)));
@@ -7734,7 +7869,8 @@ function weeklyReportData(offset){
   return { offset:offset||0, cur, prev, wk, pw, goals, mtd, overall, daysElapsed, daysInMonth, monthStart,
            byStage, openValue, weighted, openCount: open.length, funnel, avgCycle,
            reps, topRep, behindReps, wins, losses, atRisk, upcoming, closingSoon, team, totalDecks: decks.length,
-           trends, plan, bySource, bySize, quietOpen, atRiskTotal, agingBuckets, dataHealth, focus, lossReasons };
+           trends, plan, bySource, bySize, quietOpen, atRiskTotal, agingBuckets, dataHealth, focus, lossReasons,
+           winLoss: computeWinLoss(decks, null, id=>(team.find(p=>p.id===id)||{}).name||'Unassigned') };
 }
 
 /* ---- report slide helpers (reuse .rep-* styling inside landscape slides) ---- */
@@ -7970,6 +8106,30 @@ function buildReportSlides(data){
       el('div',{}, el('div',{class:'rs-label'}, 'By deal size'), segTable(sizeRows, 'Band'))),
     el('p',{class:'rs-foot'}, 'Leads & Won $ are month-to-date; open pipeline & win rate are all-time. Region/state splits need a state field on each deal — say the word and I’ll add one.')
   ));
+
+  // ----- Slide 7.5: Win & loss (all-time) -----
+  const wl = data.winLoss;
+  if (wl){
+    const dieMost = wl.whereDie.slice().sort((a,b)=>b.count-a.count)[0];
+    slides.push(rsSlide({ eyebrow:'Win/Loss', title:'How we win & lose' },
+      el('div',{class:'rs-two'},
+        el('div',{},
+          el('div',{class:'rs-label good'}, 'Win rate by source (all time)'),
+          el('table',{class:'rep-table'},
+            el('tr',{}, el('th',{},'Source'), el('th',{},'Win rate'), el('th',{},'W / L'), el('th',{},'Won $')),
+            ...(wl.bySource.length ? wl.bySource.slice(0,5).map(m => el('tr',{},
+              el('td',{}, m.key), el('td',{}, m.winRate!=null?(m.winRate+'%'):'—'), el('td',{}, m.won+' / '+m.lost), el('td',{}, fmtMoneyK(m.wonAmt))))
+              : [el('tr',{}, el('td',{class:'rep-empty', colspan:'4'}, 'No closed deals yet.'))]))),
+        el('div',{},
+          el('div',{class:'rs-label bad'}, 'Why we lose'),
+          wl.lossReasons.length
+            ? el('ul',{class:'rep-list'}, ...wl.lossReasons.slice(0,5).map(r => el('li',{},
+                el('span',{}, el('span',{class:'rl-main'}, r.reason), el('span',{class:'rl-sub'}, '  ·  ' + r.count + ' lost')),
+                el('span',{class:'rl-amt warn'}, fmtMoneyK(r.amt)))))
+            : el('div',{class:'rep-empty'}, 'No loss reasons captured yet.'))),
+      el('p',{class:'rs-foot'}, 'Overall win rate ' + (wl.winRate!=null?(wl.winRate+'%'):'—') + ' (' + wl.won + ' won / ' + wl.lost + ' lost, all time) · avg ' + (wl.cycleWon!=null?(wl.cycleWon+'d'):'—') + ' to win vs ' + (wl.cycleLost!=null?(wl.cycleLost+'d'):'—') + ' to lose' + (dieMost ? (' · most lost deals die at “' + dieMost.label + '” (' + dieMost.count + ')') : '') + '.')
+    ));
+  }
 
   // ----- Slide 8: Rep scoreboard -----
   const repRows = data.reps.map(r => el('tr',{class:(r.muted?'rep-mut':'') + (data.topRep && r.name===data.topRep.name && !r.muted ? ' top':'')},
