@@ -3329,6 +3329,14 @@ const ENROLL_PRESETS = [
   ['2,000–3,000', 2500],
   ['3,000+', 3500]
 ];
+const TEAM_PRESETS = [
+  ['1 team', 1],
+  ['2–4 teams', 4],
+  ['5–8 teams', 8],
+  ['9–15 teams', 15],
+  ['16–25 teams', 25],
+  ['25+ teams', 40]
+];
 const LOSS_PRESETS = [
   ['Under $2K', 1500],
   ['$2K–$5K', 3500],
@@ -3455,12 +3463,37 @@ function pickTier(enrollment) {
   if (!e) return null;
   return SCHOOL_TIERS.find(t => e <= t.max) || SCHOOL_TIERS[SCHOOL_TIERS.length - 1];
 }
+
+/* Youth-sports pricing — by number of teams (no onboarding fee, no SIS add-on).
+   Source: gearlocker-pricing (Youth Sports). */
+let YOUTH_TIERS = [
+  { key:'team',       name:'Team',       band:'1 team · up to 100 athletes',     maxTeams:1,        annual:750,  onboarding:0, custom:false },
+  { key:'league',     name:'League',     band:'Up to 15 teams · 300 athletes',   maxTeams:15,       annual:2490, onboarding:0, custom:false },
+  { key:'leaguepro',  name:'League Pro', band:'Up to 40 teams · 800 athletes',   maxTeams:40,       annual:4990, onboarding:0, custom:false },
+  { key:'enterprise', name:'Enterprise', band:'Unlimited teams & athletes',      maxTeams:Infinity, annual:null, onboarding:0, custom:true }
+];
+function pickYouthTier(teams){ const t = Number(teams)||0; if(!t) return null; return YOUTH_TIERS.find(x => t <= x.maxTeams) || YOUTH_TIERS[YOUTH_TIERS.length-1]; }
+const YOUTH_ROSTER_AVG = 18;   // avg athletes per youth team — used to model gear at stake from team count
+// Gear-at-stake model for a youth org: derive athletes from team count (100% participate), value the gear per sport.
+function estimateGearYouth(teams, sports){
+  const athletesTotal = Math.round((Number(teams)||0) * YOUTH_ROSTER_AVG);
+  const list = (sports||[]).filter(s => SPORT_PROFILES[s]);
+  const perSport = list.length ? Math.round(athletesTotal / list.length) : 0;
+  let totalItems=0, totalValue=0; const breakdown=[];
+  list.forEach(s => { const p = SPORT_PROFILES[s]; const items = Math.round(perSport*p.items); const value = Math.round(perSport*p.value); totalItems+=items; totalValue+=value; breakdown.push({ sport:s, athletes:perSport, items, value }); });
+  breakdown.sort((a,b)=>b.value-a.value);
+  return { totalItems, totalValue, totalAthletes:athletesTotal, breakdown };
+}
+function isYouthDeck(){ return state.d && state.d.segment === 'youth'; }
+function discoveryCount(){ return isYouthDeck() ? 3 : 4; }   // youth discovery has no SIS slide
 // A presentation/proposal can only go out once the rep has run discovery: enrollment
 // (drives the pricing tier) and at least one program (drives the tailored numbers).
 function deckReadiness(deck){
+  const youth = deck && deck.segment === 'youth';
   const missing = [];
-  if (!(deck && deck.enrollment && Number(deck.enrollment) > 0)) missing.push('enrollment');
-  if (!(deck && Array.isArray(deck.sports) && deck.sports.length)) missing.push('programs');
+  if (youth){ if (!(deck && deck.teamCount && Number(deck.teamCount) > 0)) missing.push('number of teams'); }
+  else { if (!(deck && deck.enrollment && Number(deck.enrollment) > 0)) missing.push('enrollment'); }
+  if (!(deck && Array.isArray(deck.sports) && deck.sports.length)) missing.push(youth ? 'sports' : 'programs');
   return { ready: missing.length === 0, missing };
 }
 // Effective quote for a deck: tier-based defaults + any per-deal overrides/discount stored on deck.quote.
@@ -8200,6 +8233,8 @@ function openDeck(id){
   state.lossPct = (deck.lossPct != null ? deck.lossPct : 10);
   state.d = {
     leadName: deck.school,
+    segment: deck.segment || 'school',
+    teams: deck.teamCount || '',
     enrollment: deck.enrollment || '',
     sports: Array.isArray(deck.sports) ? deck.sports.slice() : [],
     checksTech: deck.checksTech != null ? deck.checksTech : null,
@@ -8222,6 +8257,8 @@ async function downloadDeckPdf(deck, btn){
   const sp = getTeam().find(p => p.id === deck.salespersonId) || null;
   state.d = {
     leadName: deck.school,
+    segment: deck.segment || 'school',
+    teams: deck.teamCount || '',
     enrollment: deck.enrollment || '',
     sports: Array.isArray(deck.sports) ? deck.sports.slice() : [],
     checksTech: deck.checksTech != null ? deck.checksTech : null,
@@ -9574,7 +9611,7 @@ function openEmailModal(deck, opts){
       const slug = deck.school.replace(/[^a-z0-9]+/gi,'-').replace(/^-|-$/g,'');
       if (wantDeck){
         const prev = { d: state.d, lossPct: state.lossPct };
-        state.d = { leadName: deck.school, enrollment: deck.enrollment || '', sports: (deck.sports||[]).slice(),
+        state.d = { leadName: deck.school, segment: deck.segment || 'school', teams: deck.teamCount || '', enrollment: deck.enrollment || '', sports: (deck.sports||[]).slice(),
           checksTech: deck.checksTech != null ? deck.checksTech : null, sis: deck.sis || '', salesperson: sp };
         state.lossPct = deck.lossPct != null ? deck.lossPct : 10;
         let deckPdf;
@@ -9755,6 +9792,7 @@ function saveCurrentDeck(){
   if (!cur) return;
   upsertDeck(Object.assign({}, cur, {
     enrollment: state.d.enrollment,
+    teamCount: (state.d.teams != null ? state.d.teams : cur.teamCount) || '',
     sports: state.d.sports.slice(),
     lossPct: state.lossPct,
     checksTech: state.d.checksTech,
@@ -10123,6 +10161,7 @@ function renderDeck() {
 function buildSlides() {
   if (state.deckMode === 'report') return buildReportSlides(state.reportData);
   const d = state.d;
+  if ((d.segment || 'school') === 'youth') return buildYouthSlides(d);
   const school = d.leadName || 'your school';
   return [
     buildSplash(school, d),               // 1 — Cover
@@ -10145,6 +10184,30 @@ function buildSlides() {
     buildPricing(school, d),              // 18 — Pricing & ROI
     buildNextSteps(school, d),            // 19 — Next steps + schedule
     buildFinal(school, d)                 // 20 — Let's talk
+  ];
+}
+// Youth-sports deck — tailored discovery, no SIS, no multi-department "one system" slide.
+function buildYouthSlides(d) {
+  const org = d.leadName || 'your program';
+  return [
+    buildSplash(org, d),                  // Cover
+    buildDiscoveryTeams(org, d),          // Discovery: # of teams (youth sizing)
+    buildDiscoverySports(org, d),         // Discovery: sports
+    buildDiscoveryLoss(org, d),           // Discovery: gear loss
+    buildDiscoveryReport(org, d),         // What's at stake (youth math)
+    buildRecoveryCost(org, d),            // The hidden cost
+    buildSolution(org),                   // The solution
+    buildQR(),                            // Scan. Assign. Done.
+    buildAccountability(org),             // Parents are accountable
+    buildSponsors(org),                   // Fund it with sponsors
+    buildYouthOneProgram(org, d),         // Built for how youth programs run (replaces One System)
+    buildTestimonials(),                  // What organizations say
+    buildCaseStudy(org, d),               // Case study
+    buildAccess(),                        // Get every coach on board
+    buildRollout(),                       // Live in under 30 days
+    buildYouthPricing(org, d),            // Youth pricing (by teams)
+    buildNextSteps(org, d),               // Next steps
+    buildFinal(org, d)                    // Let's talk
   ];
 }
 
@@ -10255,6 +10318,152 @@ function buildDiscoveryEnrollment(school, d) {
   );
 }
 
+/* ----- Youth Discovery 1: number of teams (replaces enrollment) ----- */
+function buildDiscoveryTeams(school, d) {
+  const input = el('input', {
+    class:'big-input', type:'text', inputmode:'numeric',
+    placeholder:'e.g. 8',
+    value: d.teams ? Number(d.teams).toLocaleString() : ''
+  });
+  input.addEventListener('input', () => { state.d.teams = input.value.replace(/[^0-9]/g,''); updateChipSelection(chips, null); });
+  input.addEventListener('blur', () => { if (state.d.teams) input.value = Number(state.d.teams).toLocaleString(); });
+  const chips = el('div', {class:'quick-chips'},
+    ...TEAM_PRESETS.map(([label, value]) => el('button', {
+      class: 'quick-chip' + (Number(state.d.teams) === value ? ' selected' : ''),
+      'data-value': value,
+      onClick: () => { state.d.teams = String(value); input.value = value.toLocaleString(); updateChipSelection(chips, value); }
+    }, label))
+  );
+  return el('section', {},
+    el('div', {class:'slide-inner'},
+      el('div', {class:'discovery-pill'}, 'Discovery · 1 of ' + discoveryCount() + ' · ' + school),
+      el('h1', {class:'h1 tight'}, 'How many teams does ', el('br'), school + ' run?'),
+      el('p', {class:'lead'}, "Count every team across all your age divisions — 7U, 9U, 12U, travel, rec, all of it. We'll size your gear and your plan against programs like yours."),
+      el('div', {class:'big-input-row'}, input, chips),
+      el('div', {class:'discovery-hint'}, 'Press ', el('kbd', {}, '→'), ' to continue once you have a number.')
+    )
+  );
+}
+
+/* ----- Youth: "Built for how youth programs run" (replaces the school One System slide) ----- */
+function youthValueCard(title, tag, desc){
+  return el('div', {class:'org-card has-match'},
+    el('div', {class:'org-match-tag'}, tag),
+    el('h3', {class:'org-name'}, title),
+    el('p', {class:'org-desc'}, desc));
+}
+function buildYouthOneProgram(school, d) {
+  const sports = (d.sports || []).slice(0, 3);
+  const lead = sports.length
+    ? ('From your ' + sports.join(', ') + (d.sports.length > 3 ? ' and more' : '') + " teams to next season's new divisions — GearLocker tracks every jersey, helmet, and bag across " + school + ' in one place, and lets you reissue gear season to season instead of re-buying it.')
+    : 'From one team to forty, every jersey, helmet, and bag across your whole program lives in one dashboard — reissued season to season instead of re-bought.';
+  return el('section', {},
+    el('div', {class:'slide-inner'},
+      el('div', {class:'eyebrow'}, el('span',{class:'dot'}), 'Built for how youth programs run'),
+      el('h2', {class:'h1 tight'}, 'Every team, every season,', el('br'), 'one place.'),
+      el('p', {class:'lead'}, lead),
+      el('div', {class:'grid-3', style:'margin-top:40px;grid-template-columns:repeat(3,1fr)'},
+        youthValueCard('Every age division', 'one dashboard', '7U to your oldest travel team — every team’s gear in a single place, no spreadsheet per coach.'),
+        youthValueCard('Volunteer-proof', 'scan & go', 'New volunteer coach every season? They check gear in and out from their phone — nothing to learn, no logins.'),
+        youthValueCard('Reuse, don’t re-buy', 'season to season', 'Gear comes back tagged and accounted for, so you outfit next season from what you already own.')
+      )
+    )
+  );
+}
+
+/* ----- Youth pricing (by number of teams; no onboarding fee, no SIS add-on) ----- */
+function buildYouthPricing(school, d) {
+  const teams = d.teams ? Number(d.teams) : null;
+  const sports = d.sports || [];
+  const matched = pickYouthTier(teams);
+  const tier = matched || YOUTH_TIERS[1];   // default to League if no team count yet
+  const INCLUDED = ['Cloud inventory', 'Phone check-in/out', 'QR label printing', 'Parent notifications', 'Reporting & exports', 'Budget view', 'Item photos', 'Roster upload'];
+
+  const planCard = el('div', {class:'plan-card'},
+    el('div', {class:'plan-badge'}, matched ? school + "'s plan" : 'Most popular plan'),
+    el('div', {class:'plan-tier-name'}, tier.name + ' · ' + tier.band),
+    el('div', {class:'plan-price'},
+      tier.custom ? el('span', {class:'amt'}, "Let's talk") : el('span', {class:'amt'}, fmtMoney(tier.annual)),
+      tier.custom ? null : el('span', {class:'per'}, '/year')
+    ),
+    el('div', {class:'plan-sub'}, 'One flat price for your whole program — every team, unlimited coaches and athletes.'),
+    el('div', {class:'plan-lines'},
+      el('div', {class:'plan-line'}, el('span', {}, 'One-time onboarding'), el('span', {class:'v'}, 'Free')),
+      el('div', {class:'plan-line muted'}, el('span', {}, 'We load your rosters & inventory for you'), el('span', {class:'v'}, 'Included'))
+    ),
+    el('div', {class:'plan-total'},
+      el('div', {class:'lbl'}, 'Year 1 all-in', el('small', {}, 'no onboarding fee for youth orgs')),
+      el('div', {class:'v'}, tier.custom ? "Let's talk" : fmtMoney(tier.annual))
+    ),
+    el('div', {class:'plan-incl'},
+      el('div', {class:'plan-incl-h'}, 'Included'),
+      el('div', {class:'plan-incl-list'}, ...INCLUDED.map(f => el('span', {class:'plan-chip'}, f)))
+    )
+  );
+
+  let roiPanel;
+  if (teams && sports.length && !tier.custom) {
+    const est = estimateGearYouth(teams, sports);
+    const lossPct = state.lossPct;
+    const recoverDelta = Math.max(lossPct - GL_LOSS_FLOOR, 0);
+    const recoveredValue = Math.round(est.totalValue * recoverDelta / 100);
+    const missingNow = Math.round(est.totalItems * lossPct / 100);
+    const missingGL  = Math.round(est.totalItems * GL_LOSS_FLOOR / 100);
+    const hoursSaved = Math.max(estimateRecoveryCost(missingNow).hours - estimateRecoveryCost(missingGL).hours, 0);
+    const timeValue = hoursSaved * LABOR_RATE;
+    const totalReturn = recoveredValue + timeValue;
+    const netYear1 = totalReturn - tier.annual;
+    const multiple = totalReturn / tier.annual;
+    const netPositive = netYear1 >= 0;
+    roiPanel = el('div', {class:'roi-panel'},
+      el('div', {class:'roi-panel-h'}, 'Your return, every year'),
+      el('div', {class:'roi-hero'}, el('span', {class:'amt'}, fmtMoney(totalReturn)), el('span', {class:'mult'}, fmtMultiple(multiple) + ' return')),
+      el('div', {class:'roi-hero-sub'}, 'on a ' + fmtMoney(tier.annual) + '/yr investment, at ' + lossPct + '% loss falling to ~3%'),
+      el('div', {class:'roi-lines'},
+        el('div', {class:'roi-row'}, el('div', {class:'lbl'}, el('b', {}, 'Gear recovered'), ' — loss ' + lossPct + '% → ~3% verified'), el('div', {class:'val'}, '+ ' + fmtMoney(recoveredValue))),
+        el('div', {class:'roi-row'}, el('div', {class:'lbl'}, el('b', {}, 'Time reclaimed'), ' — ~' + fmtNum(hoursSaved) + ' hrs × $' + LABOR_RATE + '/hr'), el('div', {class:'val'}, '+ ' + fmtMoney(timeValue))),
+        el('div', {class:'roi-row cost'}, el('div', {class:'lbl'}, el('b', {}, 'GearLocker'), ' — per year'), el('div', {class:'val'}, '− ' + fmtMoney(tier.annual)))
+      ),
+      el('div', {class:'roi-net'},
+        el('div', {class:'lbl'}, 'Net savings, year one', el('small', {}, 'Pays for itself in ' + fmtPayback(tier.annual, totalReturn) + ' · sponsor-funded, it can run free')),
+        el('div', {class:'v'}, (netPositive ? '' : '−') + fmtMoney(Math.abs(netYear1)))
+      ),
+      el('div', {class:'sponsor-note'},
+        el('div', {class:'ico', html: ICON.money}),
+        el('div', {}, el('b', {}, 'Net cost can approach $0 '), '— most clubs cover the whole subscription with a single local sponsor whose logo runs on every parent notification.')
+      )
+    );
+  } else {
+    const missing = [];
+    if (!teams) missing.push('number of teams');
+    if (!sports.length) missing.push('sports');
+    roiPanel = el('div', {class:'roi-panel', style:'justify-content:center'},
+      el('div', {class:'roi-missing'},
+        el('h3', {}, tier.custom ? 'Big program? Let’s build the right plan.' : ('Add ' + missing.join(' and ') + ' in discovery')),
+        el('p', {}, tier.custom ? ('With 40+ teams you’re in Enterprise territory — we’ll tailor pricing to ' + school + '. ') : ('Fill in the discovery slides and this panel calculates recovered gear value, staff time saved, and net savings — live, for ' + school + '.'))
+      )
+    );
+  }
+
+  return el('section', {class:'surface pricing-slide'},
+    el('div', {class:'slide-inner'},
+      el('div', {class:'pricing-head'},
+        el('div', {class:'eyebrow'}, el('span',{class:'dot'}), 'Investment & return'),
+        el('h2', {class:'h2', style:'font-size:clamp(30px,3.4vw,44px);margin-bottom:10px'}, 'Priced for clubs. Built to pay for itself.'),
+        el('p', {class:'body-1', style:'font-size:15px;max-width:760px'},
+          matched
+            ? ('Based on ' + fmtNum(teams) + ' team' + (teams===1?'':'s') + ', here’s ' + school + '’s plan — no onboarding fee, and exactly what it returns in year one.')
+            : 'Simple, flat pricing that scales with your number of teams — no onboarding fee for youth orgs.')
+      ),
+      el('div', {class:'pricing-grid'}, planCard, roiPanel),
+      el('div', {class:'guarantee'},
+        el('b', {}, 'Value guarantee: '),
+        'if the gear value GearLocker helps you recover in your first 12 months is less than what you pay in subscription, we refund the difference.'
+      )
+    )
+  );
+}
+
 /* ----- Slide 3: Discovery — sports & activities ----- */
 function buildDiscoverySports(school, d) {
   const grid = el('div', {class:'chip-grid'});
@@ -10318,7 +10527,7 @@ function buildDiscoverySports(school, d) {
 
   return el('section', {},
     el('div', {class:'slide-inner'},
-      el('div', {class:'discovery-pill'}, 'Discovery · 2 of 4 · ' + school),
+      el('div', {class:'discovery-pill'}, 'Discovery · 2 of ' + discoveryCount() + ' · ' + school),
       el('h1', {class:'h1 tight'}, 'What does ', school + ' run?'),
       el('p', {class:'lead'},
         'Tap every sport, performing art, or activity that issues gear. ',
@@ -10356,7 +10565,7 @@ function buildDiscoveryLoss(school, d) {
 
   return el('section', {class:'surface'},
     el('div', {class:'slide-inner'},
-      el('div', {class:'discovery-pill'}, 'Discovery · 3 of 4 · ' + school),
+      el('div', {class:'discovery-pill'}, 'Discovery · 3 of ' + discoveryCount() + ' · ' + school),
       el('h1', {class:'h1 tight'}, 'How much gear did ', el('br'), school + ' lose last year?'),
       el('p', {class:'lead'}, "A rough estimate is fine — drag the slider to your best guess. We'll show you exactly what that means in dollars on the next page."),
 
@@ -10447,14 +10656,17 @@ function updateChipSelection(chipsContainer, value) {
 
 /* ----- Slide 7: Discovery Report (calculated) ----- */
 function buildDiscoveryReport(school, d) {
-  const enrollment = d.enrollment ? Number(d.enrollment) : null;
+  const youth = isYouthDeck();
+  const teams = youth ? (d.teams ? Number(d.teams) : null) : null;
+  const enrollment = youth ? null : (d.enrollment ? Number(d.enrollment) : null);
+  const sizeOk = youth ? !!teams : !!enrollment;
   const sports = d.sports || [];
 
   // Missing inputs — show a friendly fallback that nudges back to discovery.
-  if (!enrollment || sports.length === 0) {
+  if (!sizeOk || sports.length === 0) {
     const missing = [];
-    if (!enrollment) missing.push('enrollment');
-    if (sports.length === 0) missing.push('sports & activities');
+    if (!sizeOk) missing.push(youth ? 'number of teams' : 'enrollment');
+    if (sports.length === 0) missing.push(youth ? 'sports' : 'sports & activities');
     return el('section', {class:'surface'},
       el('div', {class:'slide-inner'},
         el('div', {class:'eyebrow'}, el('span',{class:'dot'}), 'Discovery report'),
@@ -10469,7 +10681,7 @@ function buildDiscoveryReport(school, d) {
     );
   }
 
-  const est = estimateGear(enrollment, sports);
+  const est = youth ? estimateGearYouth(teams, sports) : estimateGear(enrollment, sports);
   const lossPct = state.lossPct;
   const lossValue = Math.round(est.totalValue * lossPct / 100);
   const lossItems = Math.round(est.totalItems * lossPct / 100);
@@ -10496,13 +10708,13 @@ function buildDiscoveryReport(school, d) {
       el('div', {class:'eyebrow'}, el('span',{class:'dot'}), 'Discovery report · live model'),
       el('h2', {class:'h1 tight'}, "Here's what " + school, el('br'), 'has at stake.'),
       el('p', {class:'lead'},
-        'Based on ' + fmtNum(enrollment) + ' students and the ' + sports.length + ' program' + (sports.length === 1 ? '' : 's') + ' you run, ' + school + ' is sitting on:'),
+        'Based on ' + (youth ? (fmtNum(teams) + ' team' + (teams===1?'':'s') + ' (~' + fmtNum(est.totalAthletes) + ' players)') : (fmtNum(enrollment) + ' students')) + ' and the ' + sports.length + ' sport' + (sports.length === 1 ? '' : 's') + ' you run, ' + school + ' is sitting on:'),
 
       el('div', {class:'report-grid'},
         el('div', {class:'report-stat'},
           el('div', {class:'report-stat-label'}, 'Total items'),
           el('div', {class:'report-stat-value'}, '~' + fmtNum(est.totalItems)),
-          el('div', {class:'report-stat-sub'}, 'school-issued pieces of gear across ' + sports.length + ' program' + (sports.length === 1 ? '' : 's'))
+          el('div', {class:'report-stat-sub'}, (youth ? 'club-issued' : 'school-issued') + ' pieces of gear across ' + sports.length + ' sport' + (sports.length === 1 ? '' : 's'))
         ),
         el('div', {class:'report-stat'},
           el('div', {class:'report-stat-label'}, 'Replacement value'),
@@ -10568,7 +10780,7 @@ function updateReportFromSlider() {
   const lossPct = Number(slider.value);
   const enrollment = state.d.enrollment ? Number(state.d.enrollment) : 0;
   const sports = state.d.sports || [];
-  const est = estimateGear(enrollment, sports);
+  const est = isYouthDeck() ? estimateGearYouth(state.d.teams ? Number(state.d.teams) : 0, sports) : estimateGear(enrollment, sports);
   const lossValue = Math.round(est.totalValue * lossPct / 100);
   const lossItems = Math.round(est.totalItems * lossPct / 100);
 
@@ -10584,18 +10796,21 @@ function updateReportFromSlider() {
 
 /* ----- Slide 8: Recovery Cost (operational impact) ----- */
 function buildRecoveryCost(school, d) {
-  const enrollment = d.enrollment ? Number(d.enrollment) : null;
+  const youth = isYouthDeck();
+  const teams = youth ? (d.teams ? Number(d.teams) : null) : null;
+  const enrollment = youth ? null : (d.enrollment ? Number(d.enrollment) : null);
+  const sizeOk = youth ? !!teams : !!enrollment;
   const sports = d.sports || [];
 
-  if (!enrollment || sports.length === 0) {
+  if (!sizeOk || sports.length === 0) {
     const missing = [];
-    if (!enrollment) missing.push('enrollment');
-    if (sports.length === 0) missing.push('sports & activities');
+    if (!sizeOk) missing.push(youth ? 'number of teams' : 'enrollment');
+    if (sports.length === 0) missing.push(youth ? 'sports' : 'sports & activities');
     return el('section', {},
       el('div', {class:'slide-inner'},
         el('div', {class:'eyebrow'}, el('span',{class:'dot'}), 'Discovery report · operational impact'),
         el('h2', {class:'h1 tight'}, "We need the same inputs", el('br'), 'to model the time cost.'),
-        el('p', {class:'lead'}, "Once " + school + "'s enrollment and programs are in, we'll show exactly how many parent emails and hours your team is spending each year chasing gear."),
+        el('p', {class:'lead'}, "Once " + school + "'s " + (youth ? 'teams and sports' : 'enrollment and programs') + " are in, we'll show exactly how many parent emails and hours your team is spending each year chasing gear."),
         el('div', {class:'report-missing'},
           el('h3', {}, 'Missing: ' + missing.join(' and ')),
           el('p', {}, 'Go back to the discovery slides to fill these in.')
@@ -10604,7 +10819,7 @@ function buildRecoveryCost(school, d) {
     );
   }
 
-  const est = estimateGear(enrollment, sports);
+  const est = youth ? estimateGearYouth(teams, sports) : estimateGear(enrollment, sports);
   const lossPct = state.lossPct;
   const missingItems = Math.round(est.totalItems * lossPct / 100);
   const today = estimateRecoveryCost(missingItems);
