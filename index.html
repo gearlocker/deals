@@ -1798,6 +1798,25 @@
   .lead-loss-btn.empty { color:var(--accent); background:#fff; }
   .lead-loss-note { font-size:12px; color:var(--ink-4); margin-top:5px; line-height:1.4; }
 
+  /* geo re-engagement (social proof on a win) */
+  .lead-state-row { display:flex; align-items:center; gap:8px; }
+  .lead-state-tag { font-size:10px; font-weight:700; color:var(--accent); background:var(--accent-soft); border-radius:5px; padding:2px 6px; }
+  .lead-state-ai { font:inherit; font-size:11px; font-weight:600; color:var(--ink-3); background:var(--surface); border:1px solid var(--border); border-radius:7px; padding:4px 9px; cursor:pointer; white-space:nowrap; }
+  .lead-state-ai:hover { border-color:var(--accent); color:var(--accent); }
+  .reeng-banner { display:flex; align-items:center; justify-content:space-between; gap:14px; background:var(--accent-soft); border:1px solid #f3c89b; border-radius:14px; padding:13px 17px; margin-bottom:16px; }
+  .reeng-banner-txt { font-size:13.5px; color:var(--accent-soft-text); line-height:1.45; display:flex; align-items:center; gap:9px; }
+  .reeng-banner-txt b { color:var(--ink); }
+  .reeng-spark { font-size:15px; flex-shrink:0; }
+  .reeng-list { display:flex; flex-direction:column; gap:8px; margin:14px 0 4px; }
+  .reeng-row { display:flex; align-items:center; justify-content:space-between; gap:12px; border:1px solid var(--border); border-radius:10px; padding:10px 13px; }
+  .reeng-school { font-size:14px; font-weight:600; color:var(--ink); }
+  .reeng-sub { font-size:12px; color:var(--ink-4); margin-top:2px; line-height:1.4; }
+  .today-reeng { margin-bottom:18px; }
+  .reeng-card { display:flex; align-items:center; justify-content:space-between; gap:12px; background:var(--accent-soft); border-radius:12px; padding:12px 15px; margin-top:8px; }
+  .reeng-card .reeng-sub { color:var(--accent-soft-text); }
+  .reeng-card-actions { display:flex; gap:8px; flex-shrink:0; }
+  .nudge-reeng { font-size:11.5px; font-weight:600; color:var(--accent-soft-text); background:var(--accent-soft); border-radius:6px; padding:3px 8px; margin-top:6px; display:inline-flex; align-items:center; gap:5px; }
+
   /* dashboard parity: KPI deltas, gran toggle, loss bars, forecast-vs-plan */
   .kpi-d { display:block; margin-top:6px; font-size:11px; font-weight:600; line-height:1.2; }
   .kpi-d.up { color:#16a34a; } .kpi-d.down { color:#dc2626; } .kpi-d.flat { color:var(--ink-4); }
@@ -5472,6 +5491,7 @@ function renderLeadOverview(deck, content, sp, contact){
       leadEditRow('Stage', leadStageSelect(deck)),
       (dealStage(deck)==='closedlost' ? leadEditRow('Loss reason', lossReasonInline(deck)) : null),
       ...leadSourceRows(deck),
+      leadEditRow('State', leadStateSelect(deck)),
       infoRow('Created', deck.createdAt ? fmtDay(deck.createdAt) : '—')
     ),
     leadMilestonesCard(deck),
@@ -5488,6 +5508,7 @@ function renderLeadOverview(deck, content, sp, contact){
       el('button',{class:'lead-viewall', type:'button', onClick:()=>{ state.leadTab='timeline'; renderLead(deck); }},'View full timeline →')));
   const mini = el('div',{class:'lead-timeline mini'}); actCard.appendChild(mini);
   fillTimeline(mini, deck, { limit:5, expandable:false });
+  const banner = reEngageBanner(deck); if (banner) content.appendChild(banner);   // social-proof re-engage prompt
   content.appendChild(el('div',{class:'lead-grid'}, left, el('div',{class:'lead-right'}, leadHealthCard(deck), ovCard, nxCard, actCard)));
 }
 function leadHealthCard(deck){
@@ -5804,6 +5825,21 @@ function renderToday(force){
         el('button',{class:'btn sm primary', type:'button', onClick:()=>runSequenceStep(deck)}, isEmail ? 'Review & send' : 'Log & continue')));
     });
     body.appendChild(seqWrap);
+  }
+
+  // Warm re-engagement: dormant leads with a fresh same-state win to cite (deterministic, not from the AI briefing)
+  const reOpps = reEngageOppsFor(inMyQueue);
+  if (reOpps.length){
+    const rw = el('div',{class:'today-reeng'});
+    rw.appendChild(el('div',{class:'today-group-h'}, '✨ Warm re-engagement', el('span',{class:'today-group-n'}, String(reOpps.length))));
+    reOpps.slice(0,6).forEach(o => rw.appendChild(el('div',{class:'reeng-card'},
+      el('div',{class:'reeng-card-l'},
+        el('div',{class:'reeng-school'}, o.lead.school + (o.hint.state?(' · '+o.hint.state):'')),
+        el('div',{class:'reeng-sub'}, dormantStatus(o.lead) + ' — ' + o.hint.winner.school + ' came onboard ' + (o.hint.daysAgo===0?'today':(o.hint.daysAgo+'d ago')) + ', cite it as proof')),
+      el('div',{class:'reeng-card-actions'},
+        el('button',{class:'btn sm ghost', type:'button', onClick:()=>openLead(o.lead,'today')}, 'Open'),
+        el('button',{class:'btn sm primary', type:'button', onClick:()=>openReEngageDraft(o.lead.id, o.hint.winner.id)}, 'Draft re-engagement')))));
+    body.appendChild(rw);
   }
 
   const listEl = el('div',{class:'today-list'}); body.appendChild(listEl);
@@ -6318,12 +6354,15 @@ function renderTasksSection(){
   const nl = el('div',{class:'nt-list'});
   if (!nudges.length) nl.appendChild(el('div',{class:'lead-empty', style:'padding:14px 16px'},'No deals need a nudge right now. 🎉'));
   nudges.forEach(deck => {
+    const hint = reEngageHintForLead(deck);
     nl.appendChild(el('div',{class:'nt-row'},
       el('div',{class:'nt-body'},
         el('div',{class:'nt-task'}, el('span',{class:'nt-acct', onClick:()=>openLead(deck,'tasks')}, deck.school)),
-        el('div',{class:'nt-meta'}, daysQuiet(deck) + ' days quiet  ·  ' + repName(deck.salespersonId))),
+        el('div',{class:'nt-meta'}, daysQuiet(deck) + ' days quiet  ·  ' + repName(deck.salespersonId)),
+        hint ? el('div',{class:'nudge-reeng'}, '✨ ' + hint.winner.school + ' (' + hint.state + ') just came onboard — re-engage with the win') : null),
       el('div',{class:'nt-actions'},
-        el('button',{class:'btn sm', onClick:()=>openEmailModal(deck, {autodraft:true})},'Draft email'),
+        hint ? el('button',{class:'btn sm primary', onClick:()=>openReEngageDraft(deck.id, hint.winner.id)},'Draft re-engagement')
+             : el('button',{class:'btn sm', onClick:()=>openEmailModal(deck, {autodraft:true})},'Draft email'),
         el('button',{class:'btn ghost sm', onClick:()=>openLead(deck,'tasks')},'Open'))
     ));
   });
@@ -7126,6 +7165,7 @@ function setDeckStage(deckId, newStage){
   }
   upsertDeck(Object.assign({}, cur, patch));
   if (newStage === 'closedlost' && old !== 'closedlost') promptLossReason(deckId);   // capture why on the transition
+  if (newStage === 'closedwon' && old !== 'closedwon') maybePromptReEngage(deckId);  // surface same-state dormant leads to re-engage with the win
 }
 
 /* Ask the rep why a deal closed lost (configurable reasons + optional note). */
@@ -7155,6 +7195,87 @@ function promptLossReason(deckId){
       el('button',{class:'btn', onClick:closeModal}, 'Skip'),
       el('button',{class:'btn primary', onClick:save}, 'Save reason')));
   openModal(body);
+}
+
+/* ===================== Geo re-engagement: social proof on a win ===================== */
+const US_STATES = [['AL','Alabama'],['AK','Alaska'],['AZ','Arizona'],['AR','Arkansas'],['CA','California'],['CO','Colorado'],['CT','Connecticut'],['DE','Delaware'],['FL','Florida'],['GA','Georgia'],['HI','Hawaii'],['ID','Idaho'],['IL','Illinois'],['IN','Indiana'],['IA','Iowa'],['KS','Kansas'],['KY','Kentucky'],['LA','Louisiana'],['ME','Maine'],['MD','Maryland'],['MA','Massachusetts'],['MI','Michigan'],['MN','Minnesota'],['MS','Mississippi'],['MO','Missouri'],['MT','Montana'],['NE','Nebraska'],['NV','Nevada'],['NH','New Hampshire'],['NJ','New Jersey'],['NM','New Mexico'],['NY','New York'],['NC','North Carolina'],['ND','North Dakota'],['OH','Ohio'],['OK','Oklahoma'],['OR','Oregon'],['PA','Pennsylvania'],['RI','Rhode Island'],['SC','South Carolina'],['SD','South Dakota'],['TN','Tennessee'],['TX','Texas'],['UT','Utah'],['VT','Vermont'],['VA','Virginia'],['WA','Washington'],['WV','West Virginia'],['WI','Wisconsin'],['WY','Wyoming'],['DC','Washington DC']];
+function stateName(code){ const m=US_STATES.find(s=>s[0]===code); return m?m[1]:(code||''); }
+function deckState(d){ return (d && d.state) ? String(d.state).toUpperCase() : ''; }
+const REENGAGE_WIN_DAYS = 60;   // a win is "fresh" social proof for this long
+// Only a CLOSED-WON deal is truthfully "came onboard" — never cite a verbal commit as a signed customer.
+function winDateFor(d){ return dealStage(d)==='closedwon' ? closedWonDate(d) : null; }
+function isFreshWin(d){ const dt=winDateFor(d); if(!dt) return false; const days=dayDiff(new Date().toISOString(), dt); return days!=null && days>=0 && days<=REENGAGE_WIN_DAYS; }
+function isDormantLead(d){ return dealStage(d)==='closedlost' || dealNeedsNudge(d); }   // lost OR gone-quiet open
+function dormantStatus(d){ return dealStage(d)==='closedlost' ? 'closed lost' : ('open · quiet ' + (daysQuiet(d)||'?') + 'd'); }
+function freshWinInState(stateCode, excludeId){ if(!stateCode) return null; const w=getDecks().filter(d=>d.id!==excludeId && deckState(d)===stateCode && isFreshWin(d)).sort((a,b)=>String(winDateFor(b)).localeCompare(String(winDateFor(a)))); return w[0]||null; }
+function reEngageHintForLead(d){ if(!isDormantLead(d)) return null; const st=deckState(d); if(!st) return null; const w=freshWinInState(st,d.id); if(!w) return null; return { winner:w, state:st, daysAgo: dayDiff(new Date().toISOString(), winDateFor(w)) }; }
+function reEngageTargetsForWin(winner){ const st=deckState(winner); if(!st) return []; return getDecks().filter(d=>d.id!==winner.id && deckState(d)===st && isDormantLead(d)).sort((a,b)=>(dealAmount(b)-dealAmount(a))||((daysQuiet(a)||999)-(daysQuiet(b)||999))); }
+// All current re-engage opportunities for a rep's queue (dormant leads with a fresh same-state win).
+function reEngageOppsFor(scopeFn){ return getDecks().filter(d => (scopeFn?scopeFn(d):true)).map(d=>({ lead:d, hint:reEngageHintForLead(d) })).filter(x=>x.hint).sort((a,b)=> a.hint.daysAgo - b.hint.daysAgo || (dealAmount(b.lead)-dealAmount(a.lead))); }
+
+async function inferStateFor(deck){
+  if (!SUPABASE_URL) return null;
+  const notes = deckActivities(deck).filter(a=>a.type==='note'||a.type==='call').slice(-2).map(a=>a.text).join(' ');
+  const r = await fetch(SUPABASE_URL+'/functions/v1/infer-state', { method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+SUPABASE_ANON_KEY, 'apikey':SUPABASE_ANON_KEY }, body: JSON.stringify({ school:deck.school, contactEmail:deck.contactEmail||'', notes:notes }) });
+  const data = await r.json().catch(()=>({})); if (!r.ok) throw new Error(data.error||('Error '+r.status)); return data;
+}
+function autoInferStates(){
+  if (AUTOMATION.autoAi===false || !SUPABASE_URL) return;
+  const todo = getDecks().filter(d=>d.school && !deckState(d) && !d.stateMiss).slice(0,12);
+  let i=0; (function next(){ if(i>=todo.length) return; const d=todo[i++];
+    inferStateFor(d).then(res=>{ const cur=DB.decks.find(x=>x.id===d.id); if(!cur) return;
+      if (res && res.stateCode) saveDeckPatch(cur,{ state:res.stateCode, stateInferred:true });
+      else saveDeckPatch(cur,{ stateMiss:new Date().toISOString() });
+    }).catch(()=>{}).finally(()=>setTimeout(next,300)); })();
+}
+function leadStateSelect(deck){
+  const sel = el('select',{class:'lead-edit-input'}, el('option',{value:''},'— state —'), ...US_STATES.map(s=>el('option',{value:s[0]}, s[0]+' · '+s[1])));
+  sel.value = deckState(deck);
+  sel.addEventListener('change', ()=>{ const cur=DB.decks.find(x=>x.id===deck.id)||deck; saveDeckPatch(cur,{ state:sel.value, stateInferred:false, stateMiss:'' }); if(state.view==='lead'&&state.leadId===deck.id) renderLead(DB.decks.find(x=>x.id===deck.id)); });
+  const ai = el('button',{class:'lead-state-ai', type:'button', title:'Infer the state from the school name'}, deckState(deck)?'↻':'AI guess');
+  ai.addEventListener('click', ()=>{ ai.disabled=true; ai.textContent='…'; inferStateFor(deck).then(r=>{ const cur=DB.decks.find(x=>x.id===deck.id)||deck; if(r&&r.stateCode){ saveDeckPatch(cur,{state:r.stateCode, stateInferred:true, stateMiss:''}); if(state.view==='lead'&&state.leadId===deck.id) renderLead(DB.decks.find(x=>x.id===deck.id)); } else { ai.textContent='?'; ai.disabled=false; setTimeout(()=>{ai.textContent=deckState(deck)?'↻':'AI guess';},1500);} }).catch(()=>{ai.textContent=deckState(deck)?'↻':'AI guess';ai.disabled=false;}); });
+  return el('div',{class:'lead-state-row'}, sel, deck.stateInferred?el('span',{class:'lead-state-tag', title:'AI-inferred — confirm or correct'},'AI'):null, ai);
+}
+async function openReEngageDraft(leadId, winnerId){
+  const lead = DB.decks.find(x=>x.id===leadId), winner = DB.decks.find(x=>x.id===winnerId);
+  if (!lead || !winner) return;
+  if (!SUPABASE_URL){ closeModal(); openEmailModal(lead); return; }
+  try { if (typeof showToast==='function') showToast('Drafting a re-engagement email…'); } catch(e){}
+  try {
+    const sp = getTeam().find(p=>p.id===lead.salespersonId) || null;
+    const dd = dayDiff(new Date().toISOString(), winDateFor(winner));
+    const r = await fetch(SUPABASE_URL+'/functions/v1/reengage-draft', { method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+SUPABASE_ANON_KEY, 'apikey':SUPABASE_ANON_KEY }, body: JSON.stringify({
+      lead:{ school:lead.school, contactFirst:lead.contactFirst||'', state:deckState(lead), status:dormantStatus(lead), daysQuiet:daysQuiet(lead), lostReason:lead.lostReason||'' },
+      winner:{ school:winner.school, state:deckState(winner), whenAgo: (dd===0?'today':(dd+' days ago')) },
+      rep: sp?{name:sp.name}:null
+    }) });
+    const data = await r.json().catch(()=>({})); if (!r.ok) throw new Error(data.error||('Error '+r.status));
+    closeModal(); openEmailModal(lead, { subject:data.subject, body:data.body });
+  } catch(e){ closeModal(); openEmailModal(lead, { subject:'A school near you just came onboard with GearLocker' }); }
+}
+function maybePromptReEngage(deckId){
+  const w = DB.decks.find(x=>x.id===deckId); if(!w) return;
+  const fire = ()=>{ const cur=DB.decks.find(x=>x.id===deckId); if(!cur) return; const targets=reEngageTargetsForWin(cur); if(targets.length) promptReEngage(deckId, targets); };
+  if (deckState(w)) fire();
+  else if (SUPABASE_URL && AUTOMATION.autoAi!==false){ inferStateFor(w).then(r=>{ const cur=DB.decks.find(x=>x.id===deckId); if(cur && r && r.stateCode){ saveDeckPatch(cur,{state:r.stateCode, stateInferred:true}); fire(); } }).catch(()=>{}); }
+}
+function promptReEngage(winnerId, targets){
+  const w = DB.decks.find(x=>x.id===winnerId); if(!w) return; const st=deckState(w);
+  const list = el('div',{class:'reeng-list'}, ...targets.slice(0,6).map(t => el('div',{class:'reeng-row'},
+    el('div',{}, el('div',{class:'reeng-school'}, t.school), el('div',{class:'reeng-sub'}, dormantStatus(t) + (t.lostReason?(' · '+t.lostReason):''))),
+    el('button',{class:'btn sm primary', type:'button', onClick:()=>openReEngageDraft(t.id, winnerId)}, 'Draft re-engagement'))));
+  const body = el('div',{},
+    el('div',{class:'modal-h'}, '🎉 You closed ' + w.school + (st?(' ('+st+')'):'') + '!'),
+    el('div',{class:'modal-desc'}, targets.length + ' ' + (st?stateName(st):'nearby') + ' lead' + (targets.length>1?'s':'') + ' went cold — re-engage with the win as proof: “a school near you just came onboard.”'),
+    list,
+    el('div',{class:'modal-foot'}, el('button',{class:'btn', onClick:closeModal}, 'Maybe later')));
+  openModal(body);
+}
+function reEngageBanner(deck){
+  const hint = reEngageHintForLead(deck); if(!hint) return null;
+  return el('div',{class:'reeng-banner'},
+    el('div',{class:'reeng-banner-txt'}, el('span',{class:'reeng-spark'},'✨'), el('span',{}, el('b',{}, hint.winner.school), ' (' + hint.state + ') came onboard ' + (hint.daysAgo===0?'today':(hint.daysAgo+'d ago')) + ' — re-engage ' + deck.school + ' with the win.')),
+    el('button',{class:'btn sm primary', type:'button', onClick:()=>openReEngageDraft(deck.id, hint.winner.id)}, 'Draft re-engagement'));
 }
 
 /* ---------- Daily digest: "what needs attention today" ---------- */
@@ -8541,6 +8662,7 @@ function runAutoTasks(){
   // follow-up check (Google) first, then auto-grade (Edge fn) — sequential to avoid clobbering the same deck record
   const followup = AUTOMATION.autoFollowup ? Promise.resolve(autoCheckFollowups()).catch(()=>{}) : Promise.resolve();
   followup.finally(() => { if (AUTOMATION.autoGrade) autoGradeDecks().catch(()=>{}); });
+  if (AUTOMATION.autoAi !== false) setTimeout(autoInferStates, 1500);   // backfill states for geo re-engagement (cheap, once per lead)
 }
 function enterApp(){
   const ls = document.getElementById('login-screen'); if (ls) ls.style.display = 'none';
