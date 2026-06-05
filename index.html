@@ -8491,12 +8491,15 @@ async function composeProposalPdf(deck, setLabel){
   document.body.appendChild(host);
   try {
     const pages = buildProposalPages(deck);
+    const imgCache = new Map();
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF({ orientation:'portrait', unit:'px', format:[816,1056], compress:true });
     for (let i=0;i<pages.length;i++){
       host.replaceChildren(pages[i]);
       setLabel('Rendering proposal ' + (i+1) + ' / ' + pages.length + '…');
-      const shot = await window.html2canvas(pages[i], { scale:2, backgroundColor:'#ffffff', width:816, height:1056, windowWidth:816, windowHeight:1056, imageTimeout:15000, logging:false });
+      await inlineRemoteImages(pages[i], imgCache);   // inline photos so they land in the PDF
+      staticizeFields(pages[i]);
+      const shot = await window.html2canvas(pages[i], { scale:2, useCORS:true, allowTaint:false, backgroundColor:'#ffffff', width:816, height:1056, windowWidth:816, windowHeight:1056, imageTimeout:15000, logging:false });
       const img = shot.toDataURL('image/jpeg', 0.92);
       if (i>0) pdf.addPage([816,1056],'portrait');
       pdf.addImage(img,'JPEG',0,0,816,1056);
@@ -9919,41 +9922,66 @@ function imageToDataUrl(url, cache) {
 // be tainted (the cause of "Tainted canvases may not be exported"). Photos that
 // can't be inlined fall back to the element's solid background colour.
 async function inlineRemoteImages(root, cache) {
+  // Inline EVERY image (same-origin slide photos AND any remote ones) as a data: URI.
+  // html2canvas is unreliable at fetching url() background-images itself — converting
+  // them up front guarantees they land in the PDF; data: URIs also never taint.
+  const abs = u => { try { return new URL(u, location.href).href; } catch (e) { return u; } };
+  const isData = u => /^data:/i.test(u);
+  const reUrlG = /url\(\s*(?:"|')?([^"')]+)(?:"|')?\s*\)/g;                     // any url() target
+  const stillHttp = s => /url\(\s*(?:"|')?https?:\/\//i.test(s);              // a remote url() left behind
   const isRemote = u => /^https?:\/\//i.test(u) && u.indexOf(location.origin) !== 0;
-  const reUrlG = /url\(\s*(?:"|')?(https?:\/\/[^"')]+)(?:"|')?\s*\)/g;          // global — for matchAll
-  const hasRemoteUrl = s => /url\(\s*(?:"|')?https?:\/\//i.test(s);            // stateless — for tests
   const jobs = [];
 
   root.querySelectorAll('*').forEach(el => {
     const bg = getComputedStyle(el).backgroundImage;
     if (bg && bg.indexOf('url(') !== -1) {
-      const urls = [...bg.matchAll(reUrlG)].map(m => m[1]).filter(isRemote);
+      const urls = [...bg.matchAll(reUrlG)].map(m => m[1]).filter(u => u && !isData(u));
       if (urls.length) {
         jobs.push((async () => {
           let out = bg;
-          for (const u of urls) { const d = await imageToDataUrl(u, cache); if (d) out = out.split(u).join(d); }
-          el.style.setProperty('background-image', hasRemoteUrl(out) ? 'none' : out, 'important');
+          for (const u of urls) { const d = await imageToDataUrl(abs(u), cache); if (d) out = out.split(u).join(d); }
+          el.style.setProperty('background-image', out, 'important');
         })());
       }
     }
   });
   root.querySelectorAll('img').forEach(img => {
-    if (isRemote(img.currentSrc || img.src)) {
-      jobs.push((async () => { const d = await imageToDataUrl(img.currentSrc || img.src, cache); if (d) img.src = d; else { img.style.visibility = 'hidden'; } })());
-    }
+    const src = img.currentSrc || img.src;
+    if (src && !isData(src)) jobs.push((async () => { const d = await imageToDataUrl(abs(src), cache); if (d) img.src = d; })());
   });
 
   await Promise.all(jobs);
 
-  // HARD SAFETY NET — after inlining, forcibly strip ANY cross-origin pixel that
-  // somehow survived. Nothing remote may reach html2canvas.
+  // SAFETY NET — strip anything that's STILL remote (failed to inline) so html2canvas can't taint.
   root.querySelectorAll('*').forEach(el => {
     const bg = getComputedStyle(el).backgroundImage;
-    if (bg && hasRemoteUrl(bg)) el.style.setProperty('background-image', 'none', 'important');
+    if (bg && stillHttp(bg)) el.style.setProperty('background-image', 'none', 'important');
   });
   root.querySelectorAll('img').forEach(img => {
     const src = img.currentSrc || img.src;
-    if (isRemote(src)) { img.removeAttribute('srcset'); img.removeAttribute('src'); img.style.visibility = 'hidden'; }
+    if (src && isRemote(src)) { img.removeAttribute('srcset'); img.removeAttribute('src'); img.style.visibility = 'hidden'; }
+  });
+}
+
+// html2canvas clips/misaligns the text inside <input>/<textarea> (e.g. the big
+// enrollment number gets cut off). Swap each field for a static div carrying the
+// same value + typography so it rasterises cleanly. Operates on the throwaway
+// PDF clone only — the live presenter is untouched.
+function staticizeFields(node) {
+  node.querySelectorAll('input, textarea').forEach(f => {
+    const cs = getComputedStyle(f);
+    const div = document.createElement('div');
+    const hasVal = f.value != null && f.value !== '';
+    div.textContent = hasVal ? f.value : (f.placeholder || '');
+    ['fontFamily','fontSize','fontWeight','fontStyle','letterSpacing','lineHeight','color','padding','margin','width','height','minHeight','borderRadius','borderTop','borderRight','borderBottom','borderLeft','background','backgroundColor','boxSizing','textTransform']
+      .forEach(p => { try { div.style[p] = cs[p]; } catch (e) {} });
+    div.style.display = 'flex';
+    div.style.alignItems = 'center';
+    div.style.justifyContent = cs.textAlign === 'center' ? 'center' : (cs.textAlign === 'right' ? 'flex-end' : 'flex-start');
+    div.style.whiteSpace = 'nowrap';
+    div.style.overflow = 'visible';
+    if (!hasVal && f.placeholder) div.style.color = 'rgba(120,110,105,.55)';
+    f.parentNode.replaceChild(div, f);
   });
 }
 
@@ -9985,6 +10013,7 @@ async function composeSlidesPdf(setLabel) {
       canvas.style.transform = 'none';
       node.querySelectorAll('.pdf-btn, .pdf-hint, .hs-embed').forEach(e => { e.style.display = 'none'; });
       node.querySelectorAll('.hs-fallback').forEach(e => { e.style.display = 'flex'; });   // calendar iframe can't render to canvas — show the static card
+      staticizeFields(node);   // swap inputs → static text so values (e.g. enrollment) don't get clipped
       host.replaceChildren(node);
       setLabel('Rendering ' + (i + 1) + ' / ' + slides.length + '…');
       await inlineRemoteImages(node, imgCache);
@@ -10090,8 +10119,7 @@ function buildSlides() {
     buildDiscoveryEnrollment(school, d),  // 2 — Discovery: enrollment
     buildDiscoverySports(school, d),      // 3 — Discovery: sports
     buildDiscoveryLoss(school, d),        // 4 — Discovery: gear loss
-    buildDiscoveryTech(school, d),        // 5 — Discovery: technology
-    buildDiscoverySIS(school, d),         // 6 — Discovery: SIS
+    buildDiscoverySIS(school, d),         // 5 — Discovery: SIS
     buildDiscoveryReport(school, d),      // 7 — Discovery Report ($ at risk)
     buildRecoveryCost(school, d),         // 8 — Recovery cost (emails + hours)
     buildSolution(school),                // 9 — Solution
@@ -10208,7 +10236,7 @@ function buildDiscoveryEnrollment(school, d) {
 
   return el('section', {},
     el('div', {class:'slide-inner'},
-      el('div', {class:'discovery-pill'}, 'Discovery · 1 of 5 · ' + school),
+      el('div', {class:'discovery-pill'}, 'Discovery · 1 of 4 · ' + school),
       el('h1', {class:'h1 tight'}, 'How big is ', school + '?'),
       el('p', {class:'lead'}, "Approximate student enrollment is fine. We'll size the rollout against schools your size and benchmark the cost slide on the next page."),
       el('div', {class:'big-input-row'}, input, chips),
@@ -10280,7 +10308,7 @@ function buildDiscoverySports(school, d) {
 
   return el('section', {},
     el('div', {class:'slide-inner'},
-      el('div', {class:'discovery-pill'}, 'Discovery · 2 of 5 · ' + school),
+      el('div', {class:'discovery-pill'}, 'Discovery · 2 of 4 · ' + school),
       el('h1', {class:'h1 tight'}, 'What does ', school + ' run?'),
       el('p', {class:'lead'},
         'Tap every sport, performing art, or activity that issues gear. ',
@@ -10318,7 +10346,7 @@ function buildDiscoveryLoss(school, d) {
 
   return el('section', {class:'surface'},
     el('div', {class:'slide-inner'},
-      el('div', {class:'discovery-pill'}, 'Discovery · 3 of 5 · ' + school),
+      el('div', {class:'discovery-pill'}, 'Discovery · 3 of 4 · ' + school),
       el('h1', {class:'h1 tight'}, 'How much gear did ', el('br'), school + ' lose last year?'),
       el('p', {class:'lead'}, "A rough estimate is fine — drag the slider to your best guess. We'll show you exactly what that means in dollars on the next page."),
 
@@ -10392,7 +10420,7 @@ function buildDiscoverySIS(school, d) {
 
   return el('section', {class:'surface'},
     el('div', {class:'slide-inner'},
-      el('div', {class:'discovery-pill'}, 'Discovery · 5 of 5 · ' + school),
+      el('div', {class:'discovery-pill'}, 'Discovery · 4 of 4 · ' + school),
       el('h1', {class:'h1 tight'}, "Where do " + school + "'s", el('br'), 'rosters live?'),
       el('p', {class:'lead'}, "GearLocker auto-syncs rosters from your student information system on day one. Pick the closest match — we'll confirm on the call."),
       grid
