@@ -8208,6 +8208,19 @@ function openDeckTab(id){
   if (!w) openDeck(id);   // popup blocked → fall back to opening in place
 }
 
+let IS_REPORT_TAB = false;   // true only in a tab opened straight onto a weekly report (?report=ID)
+// A report's stable ID = the date its week starts (Sunday), e.g. 2026-05-25 — so the
+// link always points at the SAME week, even as time passes (unlike a relative offset).
+function ymdLocal(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+function reportWeekId(offset){ return ymdLocal(reportWeekRange(offset||0).start); }
+function offsetForReportId(id){ for (let o = 0; o <= 104; o++){ if (reportWeekId(o) === id) return o; } return null; }
+function openReportTab(offset, startSlide){
+  let url = location.pathname + '?report=' + encodeURIComponent(reportWeekId(offset||0));
+  if (startSlide) url += '&slide=' + startSlide;
+  const w = window.open(url, '_blank');
+  if (!w) presentReport(offset||0, startSlide||0);   // popup blocked → present in place
+}
+
 /* --- Open a deck (dashboard → presentation) --- */
 function openDeck(id){
   const deck = getDecks().find(d=>d.id===id);
@@ -9091,7 +9104,7 @@ function renderReports(){
     ...Array.from({length:8}, (_,i)=> el('option', Object.assign({value:String(i)}, i===offset?{selected:'selected'}:{}), weekLabel(reportWeekRange(i)) + (i===0?' (last week)':''))));
   const printBtn = el('button',{class:'btn ghost', type:'button', onClick:()=>printReportSlides(offset)}, 'Print');
   const dlBtn = el('button',{class:'btn ghost', type:'button', onClick:(e)=>generateReportSlidesPdf(offset, e.currentTarget)}, 'Download PDF');
-  const presentBtn = el('button',{class:'btn primary', type:'button', onClick:()=>presentReport(offset, 0)},
+  const presentBtn = el('button',{class:'btn primary', type:'button', onClick:()=>openReportTab(offset, 0)},
     el('span',{html:'<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>'}), 'Present');
   body.appendChild(el('div',{class:'rep-head'},
     el('div',{}, el('h1',{class:'lb-title'}, 'Weekly report'), el('p',{class:'lb-sub'}, 'Exec summary + rep scoreboard as a slideshow. Pick a week, then present full-screen, download, or print. Click any slide to present from it.')),
@@ -9114,7 +9127,7 @@ function renderReports(){
   buildReportSlides(data).forEach((sec, i) => {
     const inner = sec.querySelector('.slide-inner');
     const isDark = sec.classList.contains('dark');
-    grid.appendChild(el('div',{class:'rep-thumb' + (isDark?' dark':''), title:'Slide ' + (i+1) + ' — click to present', onClick:()=>presentReport(offset, i)},
+    grid.appendChild(el('div',{class:'rep-thumb' + (isDark?' dark':''), title:'Slide ' + (i+1) + ' — open in a new tab', onClick:()=>openReportTab(offset, i)},
       el('span',{class:'rep-thumb-num'}, String(i+1)),
       el('div',{class:'rep-thumb-scale'}, inner)));
   });
@@ -9830,6 +9843,18 @@ async function initDashboard(){
     const rb = document.getElementById('reset-btn'); if (rb) rb.title = 'Close this tab';
     loadGActivity();     // cached Google activity so the timeline/AI has context
     openDeck(deckParam);
+    return;
+  }
+  // Launched straight onto a weekly report (?report=ID, opened in its own tab) → present it.
+  const reportParam = new URLSearchParams(location.search).get('report');
+  if (reportParam){
+    IS_REPORT_TAB = true;
+    const rb = document.getElementById('reset-btn'); if (rb) rb.title = 'Close this tab';
+    loadGActivity();
+    const off = offsetForReportId(reportParam);
+    const startSlide = Number(new URLSearchParams(location.search).get('slide')) || 0;
+    state.reportOffset = (off != null ? off : 0);
+    presentReport((off != null ? off : 0), startSlide);
     return;
   }
   showSection('today');   // land on the AI "start my day" briefing
@@ -11389,8 +11414,8 @@ document.getElementById('next-btn').addEventListener('click', (e) => {
   e.currentTarget.blur();
 });
 document.getElementById('reset-btn').addEventListener('click', () => {
-  if (IS_DECK_TAB){
-    saveCurrentDeck();        // persist any edits before the tab goes away
+  if (IS_DECK_TAB || IS_REPORT_TAB){
+    if (IS_DECK_TAB) saveCurrentDeck();   // persist any deck edits before the tab goes away (reports aren't editable)
     window.close();           // this tab was opened via window.open, so close() is allowed
     setTimeout(backToDashboard, 120);   // fallback if the browser refuses to close it
     return;
