@@ -3760,13 +3760,29 @@ function prospectsConfig(){ return { type:'prospects', list: PROSPECTS.slice(0, 
 function applyProspects(cfg){ if (cfg && Array.isArray(cfg.list)) PROSPECTS = cfg.list.filter(Boolean); }
 function saveProspects(){ saveJSON(PROSPECTS_KEY, prospectsConfig()); if (cloudOn()) sbUpsert('settings', 'prospects', prospectsConfig()).catch(e => console.warn('prospects sync failed', e)); }
 function subsFor(name){ const s = SOURCES.find(x => x.name === name); return s ? s.subs : []; }
-/* ---- Monthly goals (dashboard pacing) ---- */
+/* ---- Team goals + pacing (weekly or monthly) ---- */
 const GOALS_KEY = 'gl_goals_v1';
-const DEFAULT_GOALS = { leads:0, demos:0, salesCount:0, sales:0 };   // sales = $ amount, salesCount = # of won deals
+const DEFAULT_GOALS = { leads:0, demos:0, salesCount:0, sales:0, period:'week' };   // sales = $ amount, salesCount = # of won deals; period = 'week' | 'month'
 let GOALS = Object.assign({}, DEFAULT_GOALS);
 function goalsConfig(){ return { type:'goals', goals: GOALS }; }
-function applyGoals(cfg){ if (cfg && cfg.goals) GOALS = Object.assign({}, DEFAULT_GOALS, { leads:Number(cfg.goals.leads)||0, demos:Number(cfg.goals.demos)||0, salesCount:Number(cfg.goals.salesCount)||0, sales:Number(cfg.goals.sales)||0 }); }
+function applyGoals(cfg){ if (cfg && cfg.goals) GOALS = Object.assign({}, DEFAULT_GOALS, { leads:Number(cfg.goals.leads)||0, demos:Number(cfg.goals.demos)||0, salesCount:Number(cfg.goals.salesCount)||0, sales:Number(cfg.goals.sales)||0, period: (cfg.goals.period==='month'?'month':'week') }); }
 function saveGoals(g){ applyGoals({ goals:g }); saveJSON(GOALS_KEY, goalsConfig()); if (cloudOn()) sbUpsert('settings', 'goals', goalsConfig()).catch(e => console.warn('goals sync failed', e)); }
+// --- Goal period helpers (so the whole app can express goals weekly or monthly) ---
+function goalIsWeekly(){ return GOALS.period !== 'month'; }                 // default weekly
+function goalNoun(){ return goalIsWeekly() ? 'week' : 'month'; }
+function goalSuffix(){ return goalIsWeekly() ? '/wk' : '/mo'; }
+function goalTargetFor(key){ return Number(GOALS[key])||0; }               // target as entered, in the chosen period
+function goalMonthlyEquiv(key){ const t = Number(GOALS[key])||0; return goalIsWeekly() ? t*(52/12) : t; }  // for month-bucketed history
+function anyGoalSet(){ return !!(Number(GOALS.leads)||Number(GOALS.demos)||Number(GOALS.salesCount)||Number(GOALS.sales)); }
+// Current goal period [start,end) at local midnight. Week = Sun–Sat containing today; Month = calendar month.
+function currentGoalRange(){
+  const now = new Date();
+  if (goalIsWeekly()){ const start = weekStartSun(now); const end = new Date(start); end.setDate(end.getDate()+7); return { start, end }; }
+  return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: new Date(now.getFullYear(), now.getMonth()+1, 1) };
+}
+// Fraction (0..1] of the current period elapsed; min one day so pace isn't zero on day one.
+function goalPaceFrac(){ const { start, end } = currentGoalRange(); const total = end - start; const elapsed = Math.max(86400000, Math.min(total, new Date() - start)); return elapsed/total; }
+function goalPeriodLabel(){ const { start, end } = currentGoalRange(); if (goalIsWeekly()){ const last = new Date(end); last.setDate(last.getDate()-1); return fmtDayShort(start) + ' – ' + fmtDayShort(last); } return new Date().toLocaleDateString(undefined,{month:'long'}); }
 function sourceLabel(deck){ const src = deck.leadSource || ''; return src + (deck.leadSubSource ? ' — ' + deck.leadSubSource : ''); }
 // A source <select> + conditional sub-source <select>, wired so the sub options swap when the source changes.
 function sourceFields(currentSource, currentSub){
@@ -5163,27 +5179,48 @@ function renderLossReasonSettings(){
 
 function renderGoalsSettings(){
   const wrap = el('div',{});
-  wrap.appendChild(el('p',{class:'settings-subtitle'}, 'Set your team’s monthly targets. The Dashboard tracks this month’s actuals against these and shows whether you’re ahead of pace. Saved for the whole team.'));
+  const subtitle = el('p',{class:'settings-subtitle'}, '');
+  wrap.appendChild(subtitle);
   const status = el('span',{class:'settings-saved'}, '');
-  const draft = Object.assign({}, GOALS);
-  const fields = [
-    { key:'leads', label:'New leads per month', placeholder:'e.g. 40' },
-    { key:'demos', label:'Demos per month', placeholder:'e.g. 12' },
-    { key:'salesCount', label:'Sales (count) per month', placeholder:'e.g. 5' },
-    { key:'sales', label:'Sales ($) per month', placeholder:'e.g. 50000', money:true }
-  ];
+  const draft = Object.assign({ period:'week' }, GOALS);
+  const per = () => draft.period === 'month' ? 'month' : 'week';
+  const suf = () => per()==='week' ? '/wk' : '/mo';
+  const periodWord = () => per()==='week' ? 'week' : 'month';
+
+  // Period toggle (weekly vs monthly cadence).
+  const periodSel = el('select',{class:'goal-set-input', style:'width:150px;text-align:left'},
+    el('option',{value:'week'}, 'Per week'),
+    el('option',{value:'month'}, 'Per month'));
+  periodSel.value = per();
+  periodSel.addEventListener('change', ()=>{ draft.period = periodSel.value === 'month' ? 'month' : 'week'; redraw(); });
+  wrap.appendChild(el('div',{class:'goals-settings', style:'margin-bottom:8px'},
+    el('div',{class:'goal-set-row'}, el('label',{class:'goal-set-label'}, 'Goal period'), el('div',{class:'goal-set-field'}, periodSel))));
+
   const form = el('div',{class:'goals-settings'});
-  fields.forEach(f => {
-    const inp = el('input',{type:'number', min:'0', step:'1', class:'goal-set-input', value:(draft[f.key]||''), placeholder:f.placeholder});
-    inp.addEventListener('input', ()=>{ draft[f.key] = Number(inp.value)||0; });
-    form.appendChild(el('div',{class:'goal-set-row'},
-      el('label',{class:'goal-set-label'}, f.label),
-      el('div',{class:'goal-set-field'}, f.money ? el('span',{class:'goal-set-pre'},'$') : null, inp, f.money ? null : el('span',{class:'goal-set-suf'}, '/mo'))));
-  });
   wrap.appendChild(form);
+
+  function redraw(){
+    subtitle.textContent = 'Set your team’s ' + periodWord() + 'ly targets. The Dashboard tracks this ' + periodWord() + '’s actuals against these and shows whether you’re ahead of pace. Saved for the whole team.';
+    form.innerHTML = '';
+    const fields = [
+      { key:'leads', label:'New leads per ' + periodWord(), placeholder: per()==='week'?'e.g. 10':'e.g. 40' },
+      { key:'demos', label:'Demos per ' + periodWord(), placeholder: per()==='week'?'e.g. 12':'e.g. 52' },
+      { key:'salesCount', label:'Sales (count) per ' + periodWord(), placeholder: per()==='week'?'e.g. 3':'e.g. 13' },
+      { key:'sales', label:'Sales ($) per ' + periodWord(), placeholder: per()==='week'?'e.g. 10200':'e.g. 44000', money:true }
+    ];
+    fields.forEach(f => {
+      const inp = el('input',{type:'number', min:'0', step:'1', class:'goal-set-input', value:(draft[f.key]||''), placeholder:f.placeholder});
+      inp.addEventListener('input', ()=>{ draft[f.key] = Number(inp.value)||0; });
+      form.appendChild(el('div',{class:'goal-set-row'},
+        el('label',{class:'goal-set-label'}, f.label),
+        el('div',{class:'goal-set-field'}, f.money ? el('span',{class:'goal-set-pre'},'$') : null, inp, f.money ? null : el('span',{class:'goal-set-suf'}, suf()))));
+    });
+  }
+  redraw();
+
   const save = ()=>{ saveGoals(draft); status.textContent = 'Saved ✓'; setTimeout(()=>status.textContent='', 2500); };
   wrap.appendChild(el('div',{class:'settings-actions'},
-    el('button',{class:'btn ghost sm', type:'button', onClick:()=>{ saveGoals({leads:0,demos:0,salesCount:0,sales:0}); renderSettingsPage(); }}, 'Clear targets'),
+    el('button',{class:'btn ghost sm', type:'button', onClick:()=>{ saveGoals({leads:0,demos:0,salesCount:0,sales:0,period:draft.period}); renderSettingsPage(); }}, 'Clear targets'),
     el('div',{style:'display:flex;align-items:center;gap:16px'}, status, el('button',{class:'btn primary', type:'button', onClick:save}, 'Save'))));
   return wrap;
 }
@@ -7002,11 +7039,12 @@ function dashSnapshot(){
   const thr=nudgeThreshold(); const quiet=open.map(d=>({amt:dealAmount(d),q:daysQuiet(d)})).filter(x=>x.q!=null&&x.q>=thr);
   const lossTally={}; decks.filter(d=>dealStage(d)==='closedlost').forEach(d=>{ const r=(d.lostReason||'').trim()||'Unspecified'; lossTally[r]=(lossTally[r]||0)+1; });
   const lossReasons=Object.keys(lossTally).map(k=>({reason:k,count:lossTally[k]})).sort((a,b)=>b.count-a.count).slice(0,5);
-  const mk=new Date().toISOString().slice(0,7), inMonth=dt=>dt && String(dt).slice(0,7)===mk;
+  const gpr=currentGoalRange(), inGP=dt=>inRange(dt, gpr);
   const goalsMTD={
-    leads:{actual:decks.filter(d=>inMonth(d.createdAt)).length, target:Number(GOALS.leads)||0},
-    demos:{actual:decks.filter(d=>inMonth(demoDate(d))).length, target:Number(GOALS.demos)||0},
-    salesRevenue:{actual:decks.filter(d=>inMonth(closedWonDate(d))).reduce((a,d)=>a+dealAmount(d),0), target:Number(GOALS.sales)||0}
+    period: goalNoun(),
+    leads:{actual:decks.filter(d=>inGP(d.createdAt)).length, target:goalTargetFor('leads')},
+    demos:{actual:decks.filter(d=>inGP(demoDate(d))).length, target:goalTargetFor('demos')},
+    salesRevenue:{actual:decks.filter(d=>inGP(closedWonDate(d))).reduce((a,d)=>a+dealAmount(d),0), target:goalTargetFor('sales')}
   };
   return {
     window: (months[0]?months[0].label:'') + ' – ' + (months.length?months[months.length-1].label:'') + ' (by ' + metricsGran() + ')',
@@ -7474,19 +7512,19 @@ function forecastSection(allDecks){
   card.appendChild(el('div',{class:'fc-heads'},
     el('div',{class:'fc-head'}, el('div',{class:'fc-num accent'}, fmtUSD(Math.round(weighted))), el('div',{class:'fc-lbl'},'Weighted forecast')),
     el('div',{class:'fc-head'}, el('div',{class:'fc-num'}, fmtUSD(best)), el('div',{class:'fc-lbl'},'Best case (all open)'))));
-  // --- vs plan: coverage + projected landing against this month's revenue goal ---
-  const monthGoal = Number(GOALS.sales)||0;
-  if (monthGoal > 0){
-    const mk = new Date().toISOString().slice(0,7);
-    const wonMTD = allDecks.filter(d => String(closedWonDate(d)||'').slice(0,7) === mk).reduce((a,d)=>a+dealAmount(d),0);
-    const remaining = Math.max(0, monthGoal - wonMTD);
+  // --- vs plan: coverage + projected landing against this period's revenue goal ---
+  const periodGoal = goalTargetFor('sales');
+  if (periodGoal > 0){
+    const gpr = currentGoalRange();
+    const wonMTD = allDecks.filter(d => inRange(closedWonDate(d), gpr)).reduce((a,d)=>a+dealAmount(d),0);
+    const remaining = Math.max(0, periodGoal - wonMTD);
     const coverage = remaining > 0 ? (best / remaining) : null;
     const projected = wonMTD + weighted;
-    const gap = projected - monthGoal;
+    const gap = projected - periodGoal;
     const covVerdict = coverage==null ? 'met' : (coverage>=3 ? 'ok' : coverage>=1.5 ? 'watch' : 'short');
     card.appendChild(el('div',{class:'fc-plan'},
-      el('div',{class:'fc-plan-row'}, el('span',{},'This month’s goal'), el('b',{}, fmtUSD(monthGoal))),
-      el('div',{class:'fc-plan-row'}, el('span',{},'Won so far'), el('b',{}, fmtUSD(wonMTD) + ' · ' + Math.round(100*wonMTD/monthGoal) + '%')),
+      el('div',{class:'fc-plan-row'}, el('span',{},'This ' + goalNoun() + '’s goal'), el('b',{}, fmtUSD(periodGoal))),
+      el('div',{class:'fc-plan-row'}, el('span',{},'Won so far'), el('b',{}, fmtUSD(wonMTD) + ' · ' + Math.round(100*wonMTD/periodGoal) + '%')),
       el('div',{class:'fc-plan-row'}, el('span',{},'Pipeline coverage'), el('b',{class:'fc-cov '+covVerdict}, coverage!=null ? (coverage.toFixed(1)+'× of the gap') : 'goal already met')),
       el('div',{class:'fc-plan-row hl'}, el('span',{},'Projected landing'), el('b',{class: gap<0?'fc-cov short':'fc-cov ok'}, fmtUSD(Math.round(projected)) + ' · ' + (gap>=0 ? (fmtMoneyK(gap)+' over') : (fmtMoneyK(Math.abs(gap))+' short'))))));
   }
@@ -7504,20 +7542,19 @@ function forecastSection(allDecks){
 }
 // Monthly goals + pacing (current month vs targets; pace marker shows % of month elapsed).
 function goalsSection(decks){
-  const mk = new Date().toISOString().slice(0,7);
-  const inMonth = dt => dt && String(dt).slice(0,7) === mk;
-  const leadsM = decks.filter(d=>inMonth(d.createdAt)).length;
-  const demosM = decks.filter(d=>inMonth(demoDate(d))).length;
-  const salesAmtM = decks.filter(d=>inMonth(closedWonDate(d))).reduce((a,d)=>a+dealAmount(d),0);
-  const now = new Date(); const dim = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
-  const pace = Math.round(100*now.getDate()/dim);
+  const gpr = currentGoalRange(); const inGP = dt => inRange(dt, gpr);
+  const leadsM = decks.filter(d=>inGP(d.createdAt)).length;
+  const demosM = decks.filter(d=>inGP(demoDate(d))).length;
+  const salesAmtM = decks.filter(d=>inGP(closedWonDate(d))).reduce((a,d)=>a+dealAmount(d),0);
+  const pace = Math.round(100*goalPaceFrac());
+  const noun = goalNoun();
   const card = el('div',{class:'metric-card'});
-  card.appendChild(el('div',{class:'metric-h'}, el('span',{}, 'Goals — ' + now.toLocaleDateString(undefined,{month:'long'})),
-    infoTip('This month’s actuals vs the monthly targets set in Settings → Goals. The vertical marker is your pace — you’re ' + pace + '% through the month, so a bar past the marker is ahead.'),
+  card.appendChild(el('div',{class:'metric-h'}, el('span',{}, 'Goals — this ' + noun + ' (' + goalPeriodLabel() + ')'),
+    infoTip('This ' + noun + '’s actuals vs the ' + noun + 'ly targets set in Settings → Goals. The vertical marker is your pace — you’re ' + pace + '% through the ' + noun + ', so a bar past the marker is ahead.'),
     el('div',{class:'metric-h-actions'}, el('button',{class:'metric-data-toggle', type:'button', onClick:()=>openSettingsPage('goals')}, 'Edit goals'))));
   if (!(Number(GOALS.leads) || Number(GOALS.demos) || Number(GOALS.sales))){
     card.appendChild(el('div',{class:'lead-empty', style:'padding:20px 4px'},
-      el('div',{style:'margin-bottom:12px'}, 'No monthly targets set yet.'),
+      el('div',{style:'margin-bottom:12px'}, 'No ' + noun + 'ly targets set yet.'),
       el('button',{class:'btn sm primary', type:'button', onClick:()=>openSettingsPage('goals')}, 'Set targets in Settings')));
     return card;
   }
@@ -7556,19 +7593,19 @@ function monthlySeries(decks, dateFn, months, valFn){
 function goalsActualsSection(decks, months){
   const card = el('div',{class:'metric-card'});
   card.appendChild(el('div',{class:'metric-h'}, el('span',{}, 'Goals vs actuals — by month'),
-    infoTip('Each month’s actuals against your monthly targets (set in Settings → Goals). Green = hit target, red = missed. The current month is judged against pace (target × % of month elapsed).'),
+    infoTip('Each month’s actuals against target. Targets shown are the monthly equivalent of your ' + goalNoun() + 'ly goals (set in Settings → Goals). Green = hit target, red = missed. The current month is judged against pace (target × % of month elapsed).'),
     el('div',{class:'metric-h-actions'}, el('button',{class:'metric-data-toggle', type:'button', onClick:()=>openSettingsPage('goals')}, 'Edit goals'))));
-  if (!(Number(GOALS.leads)||Number(GOALS.demos)||Number(GOALS.salesCount)||Number(GOALS.sales))){
+  if (!anyGoalSet()){
     card.appendChild(el('div',{class:'lead-empty', style:'padding:20px 4px'},
-      el('div',{style:'margin-bottom:12px'},'No monthly targets set yet.'),
+      el('div',{style:'margin-bottom:12px'},'No targets set yet.'),
       el('button',{class:'btn sm primary', type:'button', onClick:()=>openSettingsPage('goals')},'Set targets in Settings')));
     return card;
   }
   const metrics = [
-    { key:'leads',      label:'Leads',       target:Number(GOALS.leads)||0,      fmt:String, vals: monthlySeries(decks, d=>d.createdAt, months) },
-    { key:'demos',      label:'Demos',       target:Number(GOALS.demos)||0,      fmt:String, vals: monthlySeries(decks, demoDate, months) },
-    { key:'salesCount', label:'Sales (#)',   target:Number(GOALS.salesCount)||0, fmt:String, vals: monthlySeries(decks, closedWonDate, months) },
-    { key:'sales',      label:'Sales ($)',   target:Number(GOALS.sales)||0,      fmt:fmtUSD, vals: monthlySeries(decks, closedWonDate, months, d=>dealAmount(d)) }
+    { key:'leads',      label:'Leads',       target:Math.round(goalMonthlyEquiv('leads')),      fmt:String, vals: monthlySeries(decks, d=>d.createdAt, months) },
+    { key:'demos',      label:'Demos',       target:Math.round(goalMonthlyEquiv('demos')),      fmt:String, vals: monthlySeries(decks, demoDate, months) },
+    { key:'salesCount', label:'Sales (#)',   target:Math.round(goalMonthlyEquiv('salesCount')), fmt:String, vals: monthlySeries(decks, closedWonDate, months) },
+    { key:'sales',      label:'Sales ($)',   target:Math.round(goalMonthlyEquiv('sales')),      fmt:fmtUSD, vals: monthlySeries(decks, closedWonDate, months, d=>dealAmount(d)) }
   ];
   const curKey = new Date().toISOString().slice(0,7);
   const now = new Date(); const dim = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate(); const pace = now.getDate()/dim;
@@ -8682,11 +8719,12 @@ function weeklyReportData(offset){
     if (goal > 0) status = actual >= expected*0.999 ? 'ok' : (actual >= expected*0.85 ? 'watch' : 'behind');
     return { key, actual, goal, expected, pct: goal>0 ? Math.round(100*actual/goal) : null, status };
   }
+  // Report pacing stays monthly, but targets derive from the team's (weekly) goals so the numbers are coherent.
   const goals = {
-    leads: goalRow('leads', mtd.leads, Number(GOALS.leads)||0),
-    demos: goalRow('demos', mtd.demos, Number(GOALS.demos)||0),
-    salesCount: goalRow('salesCount', mtd.salesCount, Number(GOALS.salesCount)||0),
-    sales: goalRow('sales', mtd.sales, Number(GOALS.sales)||0)
+    leads: goalRow('leads', mtd.leads, Math.round(goalMonthlyEquiv('leads'))),
+    demos: goalRow('demos', mtd.demos, Math.round(goalMonthlyEquiv('demos'))),
+    salesCount: goalRow('salesCount', mtd.salesCount, Math.round(goalMonthlyEquiv('salesCount'))),
+    sales: goalRow('sales', mtd.sales, Math.round(goalMonthlyEquiv('sales')))
   };
   const tracked = ['leads','demos','salesCount','sales'].map(k=>goals[k]).filter(g=>g.goal>0);
   const behindN = tracked.filter(g=>g.status==='behind').length;
@@ -8798,7 +8836,7 @@ function weeklyReportData(offset){
   }
 
   // --- Forecast vs plan (month) ---
-  const monthGoal = Number(GOALS.sales)||0;
+  const monthGoal = Math.round(goalMonthlyEquiv('sales'));
   const commitVal = commitDeals.reduce((a,d)=>a+dealAmount(d),0);
   const remainingGoal = monthGoal>0 ? Math.max(0, monthGoal - mtd.sales) : null;
   const coverage = (remainingGoal && remainingGoal>0) ? (openValue / remainingGoal) : null;
@@ -9631,7 +9669,15 @@ function runAutoTasks(){
 const _inboundEnrichTried = new Set();
 function autoEnrichInbound(){
   if (AUTOMATION.autoAi === false || !SUPABASE_URL) return;
-  const todo = getDecks().filter(d => d.ebOriginated && !d.enrichDone && d.school && !_inboundEnrichTried.has(d.id)).slice(0, 5);
+  // Auto-research EVERY new lead — not just EmailBison inbound. Any active lead that has a school,
+  // hasn't been researched yet, and isn't closed. Newest first, capped per load so a backlog gets
+  // worked through without hammering the web-search API. Fill-empty-only (never overwrites edits).
+  const todo = getDecks()
+    .filter(d => d.school && !d.enrichDone && !(d.research && d.research.summary)
+                 && dealStage(d) !== 'closedwon' && dealStage(d) !== 'closedlost'
+                 && !_inboundEnrichTried.has(d.id))
+    .sort((a,b) => String(b.createdAt||'').localeCompare(String(a.createdAt||'')))
+    .slice(0, 5);
   let i = 0; (function next(){ if (i >= todo.length) return; const d = todo[i++]; _inboundEnrichTried.add(d.id);
     Promise.resolve(enrichLeadFor(d, { toast:false })).catch(()=>{}).finally(()=>setTimeout(next, 1500)); })();
 }
@@ -10018,7 +10064,10 @@ async function initDashboard(){
 //  every change and auto-pull on load and whenever you return to the tab.)
 window.addEventListener('focus', () => {
   if (cloudOn() && state.view === 'dashboard') {
-    refreshFromCloud().then(() => { if (state.view === 'dashboard') renderDashboard(); }).catch(()=>{});
+    refreshFromCloud().then(() => {
+      if (state.view === 'dashboard') renderDashboard();
+      if (AUTOMATION.autoAi !== false) setTimeout(autoEnrichInbound, 1200);  // research any newly-arrived leads (webhook/import)
+    }).catch(()=>{});
   }
 });
 bootAuth();   // gate the app behind Google sign-in (enterApp() runs initDashboard once authed)
