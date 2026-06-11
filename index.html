@@ -3333,11 +3333,21 @@ const LOGO_SVG = LOGO_IMG_DARK;
 });
 
 /* ---------- Data ---------- */
-const SPORTS_LIST = [
+// Sports that field separate boys' and girls' teams — each becomes two pickable chips
+// ("Boys Basketball" / "Girls Basketball"), and a school that runs both counts double the gear.
+const COED_SPORTS = ['Basketball','Soccer','Volleyball','Track & Field','Cross Country','Wrestling','Tennis','Golf','Swimming','Lacrosse'];
+// Single-gender or non-gendered programs stay as one chip (Football/Baseball = boys, Softball = girls, plus activities).
+const SPORTS_BASE_ORDER = [
   'Football','Basketball','Baseball','Softball','Soccer','Volleyball',
   'Track & Field','Cross Country','Wrestling','Tennis','Golf','Swimming',
   'Lacrosse','Hockey','Cheer','Dance','Band','Choir','Theater','Esports'
 ];
+const SPORTS_LIST = SPORTS_BASE_ORDER.flatMap(s => COED_SPORTS.includes(s) ? ['Boys ' + s, 'Girls ' + s] : [s]);
+// Strip a "Boys "/"Girls " prefix to find the base sport (so gendered + legacy names share one profile).
+function baseSport(name){ return String(name || '').replace(/^(Boys|Girls)\s+/i, ''); }
+function sportProfile(name){ return SPORT_PROFILES[name] || SPORT_PROFILES[baseSport(name)] || null; }
+// Gear-at-stake values were running light — bump the modeled replacement value 25% across the board.
+const GEAR_VALUE_MULT = 1.25;
 const SIS_LIST = [
   ['PowerSchool','K-12 SIS'],
   ['Infinite Campus','K-12 SIS'],
@@ -3443,11 +3453,11 @@ function estimateGear(enrollment, sports) {
   let totalAthletes = 0;
   const breakdown = [];
   (sports || []).forEach(s => {
-    const p = SPORT_PROFILES[s];
+    const p = sportProfile(s);
     if (!p) return;
     const athletes = Math.round(Number(enrollment || 0) * p.participation);
     const items = Math.round(athletes * p.items);
-    const value = Math.round(athletes * p.value);
+    const value = Math.round(athletes * p.value * GEAR_VALUE_MULT);
     totalItems += items;
     totalValue += value;
     totalAthletes += athletes;
@@ -3507,10 +3517,10 @@ const YOUTH_ROSTER_AVG = 18;   // avg athletes per youth team — used to model 
 // Gear-at-stake model for a youth org: derive athletes from team count (100% participate), value the gear per sport.
 function estimateGearYouth(teams, sports){
   const athletesTotal = Math.round((Number(teams)||0) * YOUTH_ROSTER_AVG);
-  const list = (sports||[]).filter(s => SPORT_PROFILES[s]);
+  const list = (sports||[]).filter(s => sportProfile(s));
   const perSport = list.length ? Math.round(athletesTotal / list.length) : 0;
   let totalItems=0, totalValue=0; const breakdown=[];
-  list.forEach(s => { const p = SPORT_PROFILES[s]; const items = Math.round(perSport*p.items); const value = Math.round(perSport*p.value); totalItems+=items; totalValue+=value; breakdown.push({ sport:s, athletes:perSport, items, value }); });
+  list.forEach(s => { const p = sportProfile(s); const items = Math.round(perSport*p.items); const value = Math.round(perSport*p.value*GEAR_VALUE_MULT); totalItems+=items; totalValue+=value; breakdown.push({ sport:s, athletes:perSport, items, value }); });
   breakdown.sort((a,b)=>b.value-a.value);
   return { totalItems, totalValue, totalAthletes:athletesTotal, breakdown };
 }
@@ -10147,6 +10157,7 @@ async function ensurePdfLibs() {
 // file://) and falls back to fetch(). Returns null if it can't be made CORS-clean.
 function imageToDataUrl(url, cache) {
   if (cache.has(url)) return cache.get(url);
+  const isPng = /\.png(\?|#|$)/i.test(url);   // PNGs (logos/marks) are usually transparent — keep alpha, don't flatten to a black JPEG box
   const viaImage = () => new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
@@ -10155,7 +10166,7 @@ function imageToDataUrl(url, cache) {
         const cv = document.createElement('canvas');
         cv.width = img.naturalWidth || 1; cv.height = img.naturalHeight || 1;
         cv.getContext('2d').drawImage(img, 0, 0);
-        resolve(cv.toDataURL('image/jpeg', 0.9));   // throws if tainted → caught below
+        resolve(isPng ? cv.toDataURL('image/png') : cv.toDataURL('image/jpeg', 0.9));   // throws if tainted → caught below
       } catch (e) { resolve(null); }
     };
     img.onerror = () => resolve(null);
@@ -11414,7 +11425,7 @@ function buildOneSystem(school, d) {
   const cards = ORG_CATEGORIES.map(c => {
     const isMatch =
       (c.matchTech && tech) ||
-      (c.matchSports && c.matchSports.some(s => userSports.includes(s)));
+      (c.matchSports && c.matchSports.some(s => userSports.some(u => baseSport(u) === s)));
     return el('div', {class: 'org-card ' + c.key + (isMatch ? ' has-match' : '')},
       isMatch ? el('div', {class:'org-match-tag'}, 'You run this') : null,
       el('h3', {class:'org-name'}, c.name),
@@ -11468,7 +11479,7 @@ function testimonialCard(t) {
   return el('div', {class:'testimonial-card'},
     el('div', {class:'quote'}, '"' + t.quote + '"'),
     el('div', {class:'testimonial-meta'},
-      t.logo ? el('img', {class:'avatar avatar-logo', src:t.logo, alt:'', loading:'lazy'}) : el('div', {class:'avatar'}, t.initials),
+      t.logo ? el('img', {class:'avatar avatar-logo', src:t.logo, alt:''}) : el('div', {class:'avatar'}, t.initials),
       el('div', {},
         el('div', {class:'testimonial-name'}, t.name),
         el('div', {class:'testimonial-role'}, t.role)
